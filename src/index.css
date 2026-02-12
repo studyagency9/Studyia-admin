@@ -1,0 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 25% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 91% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 187 85% 53%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 217 91% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 50%;
+
+    --radius: 0.75rem;
+
+    /* Studya Forge Brand Colors */
+    --forge-deep: 222 47% 11%;
+    --forge-primary: 217 91% 50%;
+    --forge-secondary: 217 91% 60%;
+    --forge-accent: 187 85% 53%;
+    --forge-glow: 217 91% 70%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 50%), hsl(187 85% 53%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(220 25% 98%));
+    --gradient-sidebar: linear-gradient(180deg, hsl(222 47% 11%), hsl(217 40% 16%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(217 91% 60%) 50%, hsl(187 85% 53%) 100%);
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.07), 0 2px 4px -2px hsl(222 47% 11% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.08), 0 4px 6px -4px hsl(222 47% 11% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1), 0 8px 10px -6px hsl(222 47% 11% / 0.05);
+    --shadow-glow: 0 0 20px hsl(217 91% 50% / 0.3);
+    --shadow-card: 0 1px 3px hsl(222 47% 11% / 0.06), 0 1px 2px -1px hsl(222 47% 11% / 0.06);
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 217 91% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 40% 20%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 217 40% 20%;
+    --sidebar-ring: 217 91% 50%;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 220 14% 96%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 220 14% 96%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 220 14% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 40% 16%;
+    --secondary-foreground: 220 14% 96%;
+
+    --muted: 217 40% 16%;
+    --muted-foreground: 220 9% 60%;
+
+    --accent: 187 85% 53%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 217 40% 20%;
+    --input: 217 40% 20%;
+    --ring: 217 91% 60%;
+
+    --gradient-card: linear-gradient(180deg, hsl(222 47% 13%), hsl(222 47% 11%));
+    --gradient-sidebar: linear-gradient(180deg, hsl(222 47% 6%), hsl(222 47% 8%));
+
+    --shadow-glow: 0 0 30px hsl(217 91% 50% / 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .forge-card {
+    @apply bg-card rounded-xl border border-border/50 shadow-sm transition-all duration-200;
+    background: var(--gradient-card);
+  }
+
+  .forge-card:hover {
+    @apply shadow-md border-border;
+  }
+
+  .forge-kpi-card {
+    @apply forge-card p-6 relative overflow-hidden;
+  }
+
+  .forge-kpi-value {
+    @apply text-4xl font-bold tracking-tight;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .forge-gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .forge-button-primary {
+    @apply px-4 py-2 rounded-lg font-medium text-white transition-all duration-200;
+    background: var(--gradient-hero);
+    box-shadow: var(--shadow-md), var(--shadow-glow);
+  }
+
+  .forge-button-primary:hover {
+    @apply scale-[1.02];
+    box-shadow: var(--shadow-lg), 0 0 30px hsl(217 91% 50% / 0.4);
+  }
+
+  .forge-sidebar {
+    background: var(--gradient-sidebar);
+  }
+
+  .forge-alert-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .forge-table-row {
+    @apply transition-colors duration-150 hover:bg-muted/50;
+  }
+
+  .forge-stat-up {
+    @apply text-success flex items-center gap-1;
+  }
+
+  .forge-stat-down {
+    @apply text-destructive flex items-center gap-1;
+  }
+
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out forwards;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes glow {
+    from { box-shadow: 0 0 10px hsl(217 91% 50% / 0.2); }
+    to { box-shadow: 0 0 20px hsl(217 91% 50% / 0.4); }
+  }
+}
