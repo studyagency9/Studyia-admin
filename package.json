@@ -1,7 +1,8 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "studyia-admin",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Tableau de bord administratif Studyia Career - Gestion des utilisateurs, factures, et partenaires",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3001 --host localhost",
