@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Configuration des environnements
 const isDev = import.meta.env.DEV;
-const baseURL = 'https://studyia-career-backend.onrender.com/api';
+const baseURL = 'https://studyiacareer-backend-qpmpz.ondigitalocean.app/api';
 
 // Extension des types Axios pour inclure metadata
 declare module 'axios' {
