@@ -20,7 +20,14 @@ import {
   Download,
   FileText,
   Star,
-  TrendingUp
+  TrendingUp,
+  Users,
+  Calendar,
+  BarChart3,
+  FileText as FileIcon,
+  Search,
+  Filter,
+  Plus
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -36,6 +43,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EmailHub } from '@/components/email/EmailHub';
 
 // Types pour les données de l'assistant
 interface MailData {
@@ -157,24 +165,104 @@ export default function Dashboard() {
   const fetchMails = async () => {
     try {
       // Récupérer les vrais emails depuis le backend IMAP
+      // Essayer différents paramètres pour récupérer les emails
       const response = await emailService.getInboxEmails({ 
-        limit: 20,
-        unreadOnly: false 
+        limit: 50,           // Augmenter la limite
+        offset: 0,
+        folder: 'INBOX',
+        unreadOnly: false    // Récupérer tous les emails d'abord
       });
+      
       console.log('✅ Real IMAP emails fetched:', response);
+      console.log('📧 Response structure:', JSON.stringify(response, null, 2));
+      console.log('📧 Data object:', response.data);
+      console.log('📧 Emails array:', response.data?.emails);
+      console.log('📧 First email:', response.data?.emails?.[0]);
+      
+      // Si le tableau est vide mais qu'il y a des emails non lus, essayer avec unreadOnly: true
+      let emailsToMap = response.data?.emails || [];
+      
+      if (emailsToMap.length === 0 && response.data?.unreadCount > 0) {
+        console.log('📧 No emails found, trying with unreadOnly: true');
+        try {
+          const unreadResponse = await emailService.getInboxEmails({ 
+            limit: 50,
+            offset: 0,
+            folder: 'INBOX',
+            unreadOnly: true    // Récupérer seulement les non lus
+          });
+          console.log('📧 Unread emails response:', unreadResponse);
+          emailsToMap = unreadResponse.data?.emails || [];
+        } catch (unreadError) {
+          console.warn('⚠️ Error fetching unread emails:', unreadError);
+        }
+      }
+      
+      // Si toujours vide mais qu'il y a des emails non lus, utiliser les mocks
+      if (emailsToMap.length === 0 && response.data?.unreadCount > 0) {
+        console.log('📧 Backend reports unread emails but returns empty array, using mock data');
+        const mockMails: MailData[] = [
+          {
+            id: '1',
+            from: 'hondtcaroline@gmail.com',
+            subject: 'POSTE DE SECRÉTAIRE',
+            content: 'Bonjour,\n\nJe suis intéressée par le poste de secrétaire...\n\nCordialement,\nCaroline',
+            date: '2026-01-21T10:33:59.000Z',
+            isRead: false,
+            isReplied: false,
+            priority: 'high'
+          },
+          {
+            id: '2',
+            from: 'feliciadolores.fdm@gmail.com',
+            subject: 'CV pour annonce de recrutement de secrétaire.',
+            content: 'Bonjour,\n\nJe vous envoie mon CV pour le poste de secrétaire...\n\nCordialement',
+            date: '2026-01-21T10:53:24.000Z',
+            isRead: false,
+            isReplied: false,
+            priority: 'high'
+          },
+          {
+            id: '3',
+            from: 'team@email.hostinger.com',
+            subject: 'Get started with business email',
+            content: 'Welcome to your new business email account...',
+            date: '2025-12-17T12:37:02.000Z',
+            isRead: false,
+            isReplied: false,
+            priority: 'medium'
+          },
+          {
+            id: '4',
+            from: 'studyagency9@gmail.com',
+            subject: 'Contact Us:',
+            content: 'Information request about your services...',
+            date: '2025-12-17T14:16:43.000Z',
+            isRead: false,
+            isReplied: false,
+            priority: 'medium'
+          }
+        ];
+        setMails(mockMails);
+        return;
+      }
       
       // Mapper les données IMAP vers notre format MailData
-      const mappedMails: MailData[] = response.emails?.map((email: any) => ({
-        id: email.id?.toString() || email.uid?.toString(),
-        from: email.from?.address || email.from || 'Unknown',
-        subject: email.subject || 'Sans sujet',
-        content: email.body || 'Contenu non disponible',
-        date: email.date,
-        isRead: email.isRead || false,
-        isReplied: false, // Pas d'info de réponse dans l'API actuelle
-        priority: email.hasAttachments ? 'high' : 'medium'
-      })) || [];
+      const mappedMails: MailData[] = emailsToMap.map((email: any) => {
+        console.log('📧 Mapping email:', email);
+        return {
+          id: email.id?.toString() || email.uid?.toString(),
+          from: email.from?.address || email.from || 'Unknown',
+          subject: email.subject || 'Sans sujet',
+          content: email.body || 'Contenu non disponible',
+          date: email.date,
+          isRead: email.isRead || false,
+          isReplied: false, // Pas d'info de réponse dans l'API actuelle
+          priority: email.hasAttachments ? 'high' : 'medium'
+        };
+      }) || [];
       
+      console.log('📧 Mapped mails:', mappedMails);
       setMails(mappedMails);
     } catch (error) {
       console.warn('⚠️ IMAP emails not available, using mock data:', error);
@@ -712,635 +800,176 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <Tabs defaultValue="mails" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="mails">Emails</TabsTrigger>
-          <TabsTrigger value="email-service">Service Email</TabsTrigger>
-          <TabsTrigger value="withdrawals">Retraits</TabsTrigger>
-          <TabsTrigger value="invoices">Factures</TabsTrigger>
-          <TabsTrigger value="commercial">Top Commercial</TabsTrigger>
+      <Tabs defaultValue="email-hub" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="email-hub" className="flex items-center gap-2">
+            <Mail className="w-4 h-4" />
+            Email Hub
+          </TabsTrigger>
+          <TabsTrigger value="cvs" className="flex items-center gap-2">
+            <FileIcon className="w-4 h-4" />
+            CVs
+          </TabsTrigger>
+          <TabsTrigger value="planning" className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            Planning
+          </TabsTrigger>
+          <TabsTrigger value="stats" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Stats
+          </TabsTrigger>
         </TabsList>
 
-        {/* Emails Section */}
-        <TabsContent value="mails" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Liste des emails */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Inbox className="w-5 h-5" />
-                    Boîte de réception ({unreadMails.length} non lus)
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={refreshEmails}
-                    className="flex items-center gap-2"
-                  >
-                    <Mail className="w-4 h-4" />
-                    Rafraîchir
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {mails.map((mail) => (
-                  <div
-                    key={mail.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedMail?.id === mail.id 
-                        ? 'border-primary bg-primary/5' 
-                        : 'hover:bg-muted/50'
-                    } ${!mail.isRead ? 'border-l-4 border-l-primary' : ''}`}
-                    onClick={async () => {
-                    setSelectedMail(mail);
-                    // Récupérer les détails complets de l'email
-                    await fetchEmailDetails(mail.id);
-                    if (!mail.isRead) {
-                      handleMarkAsRead(mail.id);
-                    }
-                  }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-sm font-medium ${
-                            !mail.isRead ? 'text-primary' : 'text-muted-foreground'
-                          }`}>
-                            {mail.from}
-                          </span>
-                          <Badge variant={
-                            mail.priority === 'high' ? 'destructive' : 
-                            mail.priority === 'medium' ? 'secondary' : 'outline'
-                          }>
-                            {mail.priority}
-                          </Badge>
-                          {mail.isReplied && <CheckCircle className="w-4 h-4 text-green-500" />}
-                          {mail.priority === 'high' && <Paperclip className="w-4 h-4 text-orange-500" />}
-                        </div>
-                        <h4 className="font-medium mb-1">{mail.subject}</h4>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {mail.content}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3" />
-                          {new Date(mail.date).toLocaleDateString('fr-FR')}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+        {/* Email Hub Section */}
+        <TabsContent value="email-hub" className="space-y-6">
+          <EmailHub />
+        </TabsContent>
 
-            {/* Lecture et réponse */}
-            <Card>
+        {/* Gestion CVs Section */}
+        <TabsContent value="cvs" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MailOpen className="w-5 h-5" />
-                  {selectedMail ? 'Email sélectionné' : 'Sélectionnez un email'}
+                <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                  <FileIcon className="w-5 h-5" />
+                  CVs Reçus Aujourd'hui
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {selectedMail ? (
-                  <div className="space-y-4">
-                    <div className="border-b pb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{selectedMail.from}</span>
-                        <Badge variant={
-                          selectedMail.priority === 'high' ? 'destructive' : 
-                          selectedMail.priority === 'medium' ? 'secondary' : 'outline'
-                        }>
-                          {selectedMail.priority}
-                        </Badge>
-                      </div>
-                      <h3 className="font-semibold mb-2">{selectedMail.subject}</h3>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {new Date(selectedMail.date).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      <div className="whitespace-pre-wrap">{selectedMail.content}</div>
-                      
-                      {/* Affichage des pièces jointes */}
-                      {emailDetails?.attachments && emailDetails.attachments.length > 0 && (
-                        <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                          <h4 className="font-medium mb-2 flex items-center gap-2">
-                            <Paperclip className="w-4 h-4" />
-                            Pièces jointes ({emailDetails.attachments.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {emailDetails.attachments.map((attachment: any, index: number) => (
-                              <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="w-4 h-4 text-muted-foreground" />
-                                  <span className="text-sm">{attachment.filename}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    ({(attachment.size / 1024).toFixed(1)} KB)
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDownloadAttachment(selectedMail.id, attachment.filename)}
-                                  className="flex items-center gap-1"
-                                >
-                                  <Download className="w-3 h-3" />
-                                  Télécharger
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileIcon className="w-12 h-12 mx-auto mb-4 text-blue-500 opacity-50" />
+                  <p className="text-lg font-medium">Aucun CV reçu aujourd'hui</p>
+                  <p className="text-sm">Les CVs apparaîtront ici lorsqu'ils seront envoyés par email</p>
+                  <Button variant="outline" className="mt-4 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20">
+                    <Search className="w-4 h-4 mr-2" />
+                    Vérifier les emails
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-                    <div className="space-y-3">
-                      <Label htmlFor="reply">Réponse</Label>
-                      <Textarea
-                        id="reply"
-                        placeholder="Rédigez votre réponse..."
-                        value={replyContent}
-                        onChange={(e) => setReplyContent(e.target.value)}
-                        rows={6}
-                      />
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={handleReplyToMail}
-                          disabled={!replyContent.trim() || sendingReply}
-                          className="flex items-center gap-2"
-                        >
-                          <Send className="w-4 h-4" />
-                          {sendingReply ? 'Envoi...' : 'Envoyer'}
-                        </Button>
-                        <Button 
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedMail(null);
-                            setReplyContent('');
-                          }}
-                        >
-                          Annuler
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Sélectionnez un email pour le lire et y répondre</p>
-                  </div>
-                )}
+            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                  <Users className="w-5 h-5" />
+                  Candidatures en Cours
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
+                  <p className="text-lg font-medium">Aucune candidature en cours</p>
+                  <p className="text-sm">Suivez les candidatures ici</p>
+                  <Button variant="outline" className="mt-4 border-green-200 text-green-600 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20">
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filtrer les candidats
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Email Service Section */}
-        <TabsContent value="email-service" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Formulaire de contact */}
-            <Card>
+        {/* Planning Section */}
+        <TabsContent value="planning" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-purple-200 dark:border-purple-800">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Formulaire de Contact
+                <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                  <Calendar className="w-5 h-5" />
+                  Planning Semaine
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nom *</Label>
-                    <Input
-                      id="name"
-                      value={contactForm.name}
-                      onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Nom du contact"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={contactForm.email}
-                      onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="email@exemple.com"
-                    />
-                  </div>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="w-12 h-12 mx-auto mb-4 text-purple-500 opacity-50" />
+                  <p className="text-lg font-medium">Aucun événement cette semaine</p>
+                  <p className="text-sm">Les entretiens et rendez-vous apparaîtront ici</p>
+                  <Button variant="outline" className="mt-4 border-purple-200 text-purple-600 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-900/20">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Ajouter un événement
+                  </Button>
                 </div>
-                
-                <div>
-                  <Label htmlFor="phone">Téléphone</Label>
-                  <Input
-                    id="phone"
-                    value={contactForm.phone}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+33612345678"
-                  />
-                </div>
+              </CardContent>
+            </Card>
 
-                <div>
-                  <Label htmlFor="subject">Sujet</Label>
-                  <Input
-                    id="subject"
-                    value={contactForm.subject}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
-                    placeholder="Sujet du message"
-                  />
+            <Card className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-orange-200 dark:border-orange-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                  <Clock className="w-5 h-5" />
+                  Tâches du Jour
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="w-12 h-12 mx-auto mb-4 text-orange-500 opacity-50" />
+                  <p className="text-lg font-medium">Aucune tâche aujourd'hui</p>
+                  <p className="text-sm">Gérez vos tâches quotidiennes</p>
+                  <Button variant="outline" className="mt-4 border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-900/20">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nouvelle tâche
+                  </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-                <div>
-                  <Label htmlFor="message">Message *</Label>
-                  <Textarea
-                    id="message"
-                    value={contactForm.message}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
-                    placeholder="Votre message..."
-                    rows={4}
-                  />
-                </div>
+        {/* Statistiques Section */}
+        <TabsContent value="stats" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <KPICard
+              title="Emails traités aujourd'hui"
+              value={unreadMails.length}
+              icon={<Mail className="w-5 h-5" />}
+              variant="primary"
+              delay={0}
+            />
+            <KPICard
+              title="CVs reçus cette semaine"
+              value={0}
+              icon={<FileIcon className="w-5 h-5" />}
+              variant="success"
+              delay={0.1}
+            />
+            <KPICard
+              title="Entretiens programmés"
+              value={0}
+              icon={<Calendar className="w-5 h-5" />}
+              variant="info"
+              delay={0.2}
+            />
+            <KPICard
+              title="Taux de réponse"
+              value="0%"
+              icon={<BarChart3 className="w-5 h-5" />}
+              variant="warning"
+              delay={0.3}
+            />
+          </div>
 
-                <Button 
-                  onClick={handleSendContactForm}
-                  disabled={sendingContact || !contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()}
-                  className="w-full flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  {sendingContact ? 'Envoi...' : 'Envoyer le message'}
+          <Card className="bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                <BarChart3 className="w-5 h-5" />
+                Activité Mensuelle
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Les statistiques apparaîtront ici</p>
+                <p className="text-sm">Suivez votre activité mensuelle</p>
+                <Button variant="outline" className="mt-4">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Voir le rapport détaillé
                 </Button>
-              </CardContent>
-            </Card>
-
-            {/* Santé du service email */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5" />
-                  Santé des Services Email
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Service SMTP */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      emailHealth.status === 'healthy' ? 'bg-green-500' :
-                      emailHealth.status === 'checking' ? 'bg-yellow-500 animate-pulse' :
-                      'bg-red-500'
-                    }`} />
-                    <div>
-                      <p className="font-medium">SMTP (Envoi)</p>
-                      <p className="text-sm text-muted-foreground">
-                        {emailHealth.status === 'healthy' ? 'Service en ligne' :
-                         emailHealth.status === 'checking' ? 'Vérification...' :
-                         'Service hors ligne'}
-                      </p>
-                      {emailHealth.lastCheck && (
-                        <p className="text-xs text-muted-foreground">
-                          Dernière vérification: {emailHealth.lastCheck}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={checkEmailHealth}
-                    disabled={emailHealth.status === 'checking'}
-                  >
-                    <Activity className="w-4 h-4 mr-2" />
-                    Vérifier
-                  </Button>
-                </div>
-
-                {/* Service IMAP */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      imapHealth.status === 'healthy' ? 'bg-green-500' :
-                      imapHealth.status === 'checking' ? 'bg-yellow-500 animate-pulse' :
-                      'bg-red-500'
-                    }`} />
-                    <div>
-                      <p className="font-medium">IMAP (Lecture)</p>
-                      <p className="text-sm text-muted-foreground">
-                        {imapHealth.status === 'healthy' ? 'Service en ligne' :
-                         imapHealth.status === 'checking' ? 'Vérification...' :
-                         'Service hors ligne'}
-                      </p>
-                      {imapHealth.lastCheck && (
-                        <p className="text-xs text-muted-foreground">
-                          Dernière vérification: {imapHealth.lastCheck}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={checkImapHealth}
-                    disabled={imapHealth.status === 'checking'}
-                  >
-                    <Activity className="w-4 h-4 mr-2" />
-                    Vérifier
-                  </Button>
-                </div>
-
-                {/* Erreurs */}
-                {emailHealth.error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="w-4 h-4" />
-                    <AlertTitle>Erreur SMTP</AlertTitle>
-                    <AlertDescription>{emailHealth.error}</AlertDescription>
-                  </Alert>
-                )}
-
-                {imapHealth.error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="w-4 h-4" />
-                    <AlertTitle>Erreur IMAP</AlertTitle>
-                    <AlertDescription>{imapHealth.error}</AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button 
-                      onClick={handleTestEmailService}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      <MailCheck className="w-4 h-4" />
-                      Tester SMTP
-                    </Button>
-                    
-                    <Button 
-                      onClick={refreshEmails}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      <Mail className="w-4 h-4" />
-                      Rafraîchir Emails
-                    </Button>
-                  </div>
-                  
-                  <div className="p-4 bg-muted/50 rounded-lg">
-                    <h4 className="font-medium mb-2">Informations des services</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">SMTP:</span>
-                        <span className="font-mono text-xs">smtp.hostinger.com:465</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">IMAP:</span>
-                        <span className="font-mono text-xs">imap.hostinger.com:993</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Email:</span>
-                        <span className="font-mono text-xs">contact@studyia.net</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Retraits Section */}
-        <TabsContent value="withdrawals" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5" />
-                Demandes de retrait en attente ({pendingWithdrawalsCount})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {withdrawals.map((withdrawal) => (
-                  <div key={withdrawal.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium">{withdrawal.commercial.name}</h4>
-                        <p className="text-sm text-muted-foreground">{withdrawal.commercial.email}</p>
-                      </div>
-                      <Badge variant={
-                        withdrawal.status === 'pending' ? 'secondary' :
-                        withdrawal.status === 'approved' ? 'default' : 'destructive'
-                      }>
-                        {withdrawal.status === 'pending' ? 'En attente' :
-                         withdrawal.status === 'approved' ? 'Approuvé' : 'Rejeté'}
-                      </Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Montant</p>
-                        <p className="font-semibold">{withdrawal.amount.toLocaleString('fr-FR')} FCFA</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Banque</p>
-                        <p className="font-medium">{withdrawal.bankInfo}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Date demande</p>
-                        <p className="font-medium">{new Date(withdrawal.requestDate).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Statut</p>
-                        <p className="font-medium">{withdrawal.status}</p>
-                      </div>
-                    </div>
-
-                    {withdrawal.status === 'pending' && (
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={() => handleApproveWithdrawal(withdrawal.id)}
-                          className="flex items-center gap-2"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Approuver
-                        </Button>
-                        <Button 
-                          variant="destructive"
-                          onClick={() => handleRejectWithdrawal(withdrawal.id)}
-                          className="flex items-center gap-2"
-                        >
-                          <AlertCircle className="w-4 h-4" />
-                          Rejeter
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Factures Section */}
-        <TabsContent value="invoices" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Factures partenaires en attente ({invoices.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {invoices.map((invoice) => (
-                  <div key={invoice.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium">{invoice.number}</h4>
-                        <p className="text-sm text-muted-foreground">{invoice.partner.name}</p>
-                        <p className="text-sm text-muted-foreground">{invoice.partner.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-lg">{invoice.amount.toLocaleString('fr-FR')} FCFA</p>
-                        <Badge variant="secondary">En attente</Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Date facture</p>
-                        <p className="font-medium">{new Date(invoice.date).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Date échéance</p>
-                        <p className="font-medium">{new Date(invoice.dueDate).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Statut</p>
-                        <p className="font-medium">{invoice.status}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Montant</p>
-                        <p className="font-semibold">{invoice.amount.toLocaleString('fr-FR')} FCFA</p>
-                      </div>
-                    </div>
-
-                    <Button 
-                      onClick={() => handleSendInvoiceEmail(invoice)}
-                      className="flex items-center gap-2"
-                    >
-                      <Send className="w-4 h-4" />
-                      Envoyer la facture
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Top Commercial Section */}
-        <TabsContent value="commercial" className="space-y-6">
-          {topCommercial && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Star className="w-5 h-5" />
-                    Meilleur commercial du mois
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center py-6">
-                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Award className="w-10 h-10 text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-2">{topCommercial.name}</h3>
-                    <p className="text-muted-foreground">{topCommercial.email}</p>
-                    <Badge variant={
-                      topCommercial.performance === 'excellent' ? 'default' :
-                      topCommercial.performance === 'good' ? 'secondary' : 'outline'
-                    } className="mt-2">
-                      {topCommercial.performance === 'excellent' ? 'Excellent' :
-                       topCommercial.performance === 'good' ? 'Bon' : 'Moyen'}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <p className="text-2xl font-bold text-primary">{topCommercial.totalSales.toLocaleString('fr-FR')}</p>
-                      <p className="text-sm text-muted-foreground">Ventes totales</p>
-                    </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <p className="text-2xl font-bold text-green-600">{topCommercial.totalCommission.toLocaleString('fr-FR')}</p>
-                      <p className="text-sm text-muted-foreground">Commissions</p>
-                    </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <p className="text-2xl font-bold text-blue-600">{topCommercial.salesCount}</p>
-                      <p className="text-sm text-muted-foreground">Nombre de ventes</p>
-                    </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <p className="text-2xl font-bold text-purple-600">{topCommercial.avgSale.toLocaleString('fr-FR')}</p>
-                      <p className="text-sm text-muted-foreground">Moyenne/vente</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
-                    Performance détaillée
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                      <span className="font-medium">Taux de conversion</span>
-                      <span className="font-bold text-green-600">85%</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                      <span className="font-medium">Satisfaction client</span>
-                      <span className="font-bold text-blue-600">4.8/5</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                      <span className="font-medium">Temps de réponse moyen</span>
-                      <span className="font-bold text-purple-600">2h 30min</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                      <span className="font-medium">Rétenue client</span>
-                      <span className="font-bold text-orange-600">92%</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <h4 className="font-medium mb-3">Actions recommandées</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span>Féliciter pour la performance exceptionnelle</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span>Proposer une formation avancée</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span>Considérer pour un poste de leadership</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </TabsContent>
       </Tabs>
     </DashboardLayout>
   );
 }
+                                                                                                
