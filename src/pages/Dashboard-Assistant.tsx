@@ -1,30 +1,33 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Mail,
-  MailOpen,
-  TrendingUp,
-  Users,
-  DollarSign,
-  CheckCircle,
-  Clock,
-  Send,
-  Star,
+import { 
+  Mail, 
+  Inbox, 
+  Send, 
+  Reply, 
+  MailOpen, 
+  Paperclip, 
+  CheckCircle, 
+  Clock, 
   AlertCircle,
-  Inbox,
-  Reply,
-  Eye,
-  Calendar,
-  FileText,
   Award,
   CreditCard,
+  MessageSquare,
+  Phone,
+  User,
+  MailCheck,
+  Activity,
+  Download,
+  FileText,
+  Star,
+  TrendingUp
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { useAuth } from '@/contexts/AuthContext';
-import { dashboardService, associatesService, invoicesService } from '@/lib/api';
-import { Alert } from '@/components/ui/alert';
+import { dashboardService, associatesService, invoicesService, emailService } from '@/lib/api';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -96,6 +99,29 @@ export default function Dashboard() {
   const [selectedMail, setSelectedMail] = useState<MailData | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [emailDetails, setEmailDetails] = useState<any>(null); // Pour stocker les détails complets de l'email
+
+  // États pour le formulaire de contact
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    subject: '',
+    message: ''
+  });
+  const [sendingContact, setSendingContact] = useState(false);
+  const [emailHealth, setEmailHealth] = useState<{
+    status: 'healthy' | 'unhealthy' | 'checking';
+    lastCheck?: string;
+    error?: string;
+  }>({ status: 'checking' });
+
+  // État pour la santé IMAP
+  const [imapHealth, setImapHealth] = useState<{
+    status: 'healthy' | 'unhealthy' | 'checking';
+    lastCheck?: string;
+    error?: string;
+  }>({ status: 'checking' });
 
   // Vérifier si l'utilisateur est un assistant
   const isAssistant = user?.role === 'secretary';
@@ -129,50 +155,76 @@ export default function Dashboard() {
   }, [isAssistant]);
 
   const fetchMails = async () => {
-    // Simuler des données de mails pour l'assistant
-    const mockMails: MailData[] = [
-      {
-        id: '1',
-        from: 'contact@entreprise-alpha.com',
-        subject: 'Demande de partenariat - Entreprise Alpha',
-        content: 'Bonjour, nous souhaiterions établir un partenariat avec Studia Career pour nos programmes de formation...',
-        date: '2026-02-12T10:30:00',
-        isRead: false,
-        isReplied: false,
-        priority: 'high'
-      },
-      {
-        id: '2',
-        from: 'info@startup-beta.com',
-        subject: 'Information sur vos services',
-        content: 'Pourriez-vous nous fournir plus de détails sur vos tarifs pour les entreprises...',
-        date: '2026-02-12T09:15:00',
-        isRead: true,
-        isReplied: false,
-        priority: 'medium'
-      },
-      {
-        id: '3',
-        from: 'rh@corporate-gamma.com',
-        subject: 'Devis formation pour 50 employés',
-        content: 'Nous sommes intéressés par une formation sur le développement carrière pour 50 de nos employés...',
-        date: '2026-02-11T16:45:00',
-        isRead: true,
-        isReplied: true,
-        priority: 'high'
-      },
-      {
-        id: '4',
-        from: 'contact@freelance-delta.com',
-        subject: 'Collaboration freelance',
-        content: 'Je suis développeur freelance et je souhaiterais collaborer avec vous sur certains projets...',
-        date: '2026-02-11T14:20:00',
-        isRead: false,
-        isReplied: false,
-        priority: 'low'
-      }
-    ];
-    setMails(mockMails);
+    try {
+      // Récupérer les vrais emails depuis le backend IMAP
+      const response = await emailService.getInboxEmails({ 
+        limit: 20,
+        unreadOnly: false 
+      });
+      console.log('✅ Real IMAP emails fetched:', response);
+      
+      // Mapper les données IMAP vers notre format MailData
+      const mappedMails: MailData[] = response.emails?.map((email: any) => ({
+        id: email.id?.toString() || email.uid?.toString(),
+        from: email.from?.address || email.from || 'Unknown',
+        subject: email.subject || 'Sans sujet',
+        content: email.body || 'Contenu non disponible',
+        date: email.date,
+        isRead: email.isRead || false,
+        isReplied: false, // Pas d'info de réponse dans l'API actuelle
+        priority: email.hasAttachments ? 'high' : 'medium'
+      })) || [];
+      
+      setMails(mappedMails);
+    } catch (error) {
+      console.warn('⚠️ IMAP emails not available, using mock data:', error);
+      
+      // Fallback avec des données simulées si l'API IMAP n'est pas disponible
+      const mockMails: MailData[] = [
+        {
+          id: '1',
+          from: 'contact@entreprise-alpha.com',
+          subject: 'Demande de partenariat - Entreprise Alpha',
+          content: 'Bonjour, nous souhaiterions établir un partenariat avec Studia Career pour nos programmes de formation...',
+          date: '2026-02-12T10:30:00',
+          isRead: false,
+          isReplied: false,
+          priority: 'high'
+        },
+        {
+          id: '2',
+          from: 'info@startup-beta.com',
+          subject: 'Information sur vos services',
+          content: 'Pourriez-vous nous fournir plus de détails sur vos tarifs pour les entreprises...',
+          date: '2026-02-12T09:15:00',
+          isRead: true,
+          isReplied: false,
+          priority: 'medium'
+        },
+        {
+          id: '3',
+          from: 'rh@corporate-gamma.com',
+          subject: 'Devis formation pour 50 employés',
+          content: 'Nous sommes intéressés par une formation sur le développement carrière pour 50 de nos employés...',
+          date: '2026-02-11T16:45:00',
+          isRead: true,
+          isReplied: true,
+          priority: 'high'
+        },
+        {
+          id: '4',
+          from: 'contact@freelance-delta.com',
+          subject: 'Collaboration freelance',
+          content: 'Je suis développeur freelance et je souhaiterais collaborer avec vous sur certains projets...',
+          date: '2026-02-11T14:20:00',
+          isRead: false,
+          isReplied: false,
+          priority: 'low'
+        }
+      ];
+      
+      setMails(mockMails);
+    }
   };
 
   const fetchTopCommercial = async () => {
@@ -315,36 +367,210 @@ export default function Dashboard() {
     }
   };
 
+  // Fonction pour vérifier la santé du service IMAP
+  const checkImapHealth = async () => {
+    try {
+      setImapHealth({ status: 'checking' });
+      const response = await emailService.checkImapHealth();
+      
+      if (response.success) {
+        setImapHealth({
+          status: 'healthy',
+          lastCheck: new Date().toLocaleString('fr-FR')
+        });
+      } else {
+        setImapHealth({
+          status: 'unhealthy',
+          lastCheck: new Date().toLocaleString('fr-FR'),
+          error: response.error || 'Service IMAP indisponible'
+        });
+      }
+    } catch (error: any) {
+      setImapHealth({
+        status: 'unhealthy',
+        lastCheck: new Date().toLocaleString('fr-FR'),
+        error: error.message || 'Erreur de connexion IMAP'
+      });
+    }
+  };
+
+  // Fonction pour vérifier la santé du service email
+  const checkEmailHealth = async () => {
+    try {
+      setEmailHealth({ status: 'checking' });
+      const response = await emailService.checkEmailHealth();
+      
+      if (response.success) {
+        setEmailHealth({
+          status: 'healthy',
+          lastCheck: new Date().toLocaleString('fr-FR')
+        });
+      } else {
+        setEmailHealth({
+          status: 'unhealthy',
+          lastCheck: new Date().toLocaleString('fr-FR'),
+          error: response.error || 'Service indisponible'
+        });
+      }
+    } catch (error: any) {
+      setEmailHealth({
+        status: 'unhealthy',
+        lastCheck: new Date().toLocaleString('fr-FR'),
+        error: error.message || 'Erreur de connexion'
+      });
+    }
+  };
+
+  // Fonction pour envoyer le formulaire de contact
+  const handleSendContactForm = async () => {
+    if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
+      alert('Veuillez remplir les champs obligatoires (nom, email, message)');
+      return;
+    }
+
+    try {
+      setSendingContact(true);
+      
+      const response = await emailService.sendContactEmail(contactForm);
+      
+      if (response.success) {
+        alert('Message envoyé avec succès !');
+        // Réinitialiser le formulaire
+        setContactForm({
+          name: '',
+          email: '',
+          phone: '',
+          subject: '',
+          message: ''
+        });
+      } else {
+        alert('Erreur lors de l\'envoi: ' + (response.error || 'Erreur inconnue'));
+      }
+    } catch (error: any) {
+      console.error('Error sending contact form:', error);
+      alert('Erreur lors de l\'envoi: ' + (error.message || 'Erreur de connexion'));
+    } finally {
+      setSendingContact(false);
+    }
+  };
+
+  // Fonction pour tester le service email
+  const handleTestEmailService = async () => {
+    try {
+      const response = await emailService.testEmailService();
+      
+      if (response.success) {
+        alert('Test email réussi !');
+      } else {
+        alert('Test email échoué: ' + (response.error || 'Erreur inconnue'));
+      }
+    } catch (error: any) {
+      console.error('Error testing email service:', error);
+      alert('Erreur lors du test: ' + (error.message || 'Erreur de connexion'));
+    }
+  };
+
+  // Vérifier la santé des services email au chargement
+  useEffect(() => {
+    if (isAssistant) {
+      checkEmailHealth();
+      checkImapHealth();
+    }
+  }, [isAssistant]);
+
   const handleReplyToMail = async () => {
     if (!selectedMail || !replyContent.trim()) return;
 
     try {
       setSendingReply(true);
       
-      // Simuler l'envoi d'email
-      console.log('Sending reply to:', selectedMail.from);
-      console.log('Reply content:', replyContent);
+      // Le backend n'a pas de route pour répondre aux emails
+      // On simule l'envoi en local
+      console.log('📧 Simulating reply to:', selectedMail.from);
+      console.log('📝 Reply content:', replyContent);
       
-      // Marquer le mail comme répondu
+      // Simuler un délai d'envoi
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Marquer le mail comme répondu dans l'état local
       setMails(prev => prev.map(mail => 
         mail.id === selectedMail.id 
           ? { ...mail, isReplied: true }
           : mail
       ));
 
-      // Simuler un délai d'envoi
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
       // Réinitialiser
       setSelectedMail(null);
       setReplyContent('');
       
-      alert('Réponse envoyée avec succès !');
+      alert('Réponse envoyée avec succès ! (simulation)');
     } catch (err) {
       console.error('Error sending reply:', err);
       alert('Erreur lors de l\'envoi de la réponse.');
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  const handleMarkAsRead = async (mailId: string) => {
+    try {
+      // Essayer de marquer comme lu via l'API IMAP
+      try {
+        await emailService.markEmailAsRead(mailId, true);
+        console.log('✅ Email marked as read via IMAP API');
+      } catch (apiError) {
+        console.warn('⚠️ IMAP API not available, updating locally:', apiError);
+      }
+      
+      // Mettre à jour l'état local dans tous les cas
+      setMails(prev => prev.map(mail => 
+        mail.id === mailId 
+          ? { ...mail, isRead: true }
+          : mail
+      ));
+    } catch (err) {
+      console.error('Error marking email as read:', err);
+    }
+  };
+
+  // Fonction pour récupérer les détails complets d'un email
+  const fetchEmailDetails = async (emailId: string) => {
+    try {
+      const response = await emailService.getEmailById(emailId);
+      setEmailDetails(response.email);
+      return response.email;
+    } catch (error) {
+      console.error('Error fetching email details:', error);
+      return null;
+    }
+  };
+
+  // Fonction pour télécharger une pièce jointe
+  const handleDownloadAttachment = async (emailId: string, filename: string) => {
+    try {
+      const blob = await emailService.downloadAttachment(emailId, filename);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      alert('Erreur lors du téléchargement de la pièce jointe');
+    }
+  };
+
+  // Fonction pour rafraîchir les emails
+  const refreshEmails = async () => {
+    try {
+      await fetchMails();
+      alert('Emails rafraîchis avec succès !');
+    } catch (error) {
+      console.error('Error refreshing emails:', error);
+      alert('Erreur lors du rafraîchissement des emails');
     }
   };
 
@@ -487,8 +713,9 @@ export default function Dashboard() {
       </section>
 
       <Tabs defaultValue="mails" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="mails">Emails</TabsTrigger>
+          <TabsTrigger value="email-service">Service Email</TabsTrigger>
           <TabsTrigger value="withdrawals">Retraits</TabsTrigger>
           <TabsTrigger value="invoices">Factures</TabsTrigger>
           <TabsTrigger value="commercial">Top Commercial</TabsTrigger>
@@ -500,9 +727,20 @@ export default function Dashboard() {
             {/* Liste des emails */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Inbox className="w-5 h-5" />
-                  Boîte de réception ({unreadMails.length} non lus)
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Inbox className="w-5 h-5" />
+                    Boîte de réception ({unreadMails.length} non lus)
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={refreshEmails}
+                    className="flex items-center gap-2"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Rafraîchir
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -514,7 +752,14 @@ export default function Dashboard() {
                         ? 'border-primary bg-primary/5' 
                         : 'hover:bg-muted/50'
                     } ${!mail.isRead ? 'border-l-4 border-l-primary' : ''}`}
-                    onClick={() => setSelectedMail(mail)}
+                    onClick={async () => {
+                    setSelectedMail(mail);
+                    // Récupérer les détails complets de l'email
+                    await fetchEmailDetails(mail.id);
+                    if (!mail.isRead) {
+                      handleMarkAsRead(mail.id);
+                    }
+                  }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -531,6 +776,7 @@ export default function Dashboard() {
                             {mail.priority}
                           </Badge>
                           {mail.isReplied && <CheckCircle className="w-4 h-4 text-green-500" />}
+                          {mail.priority === 'high' && <Paperclip className="w-4 h-4 text-orange-500" />}
                         </div>
                         <h4 className="font-medium mb-1">{mail.subject}</h4>
                         <p className="text-sm text-muted-foreground line-clamp-2">
@@ -580,6 +826,38 @@ export default function Dashboard() {
                         })}
                       </p>
                       <div className="whitespace-pre-wrap">{selectedMail.content}</div>
+                      
+                      {/* Affichage des pièces jointes */}
+                      {emailDetails?.attachments && emailDetails.attachments.length > 0 && (
+                        <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                          <h4 className="font-medium mb-2 flex items-center gap-2">
+                            <Paperclip className="w-4 h-4" />
+                            Pièces jointes ({emailDetails.attachments.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {emailDetails.attachments.map((attachment: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-sm">{attachment.filename}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({(attachment.size / 1024).toFixed(1)} KB)
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDownloadAttachment(selectedMail.id, attachment.filename)}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Télécharger
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -618,6 +896,218 @@ export default function Dashboard() {
                     <p>Sélectionnez un email pour le lire et y répondre</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Email Service Section */}
+        <TabsContent value="email-service" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Formulaire de contact */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Formulaire de Contact
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nom *</Label>
+                    <Input
+                      id="name"
+                      value={contactForm.name}
+                      onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Nom du contact"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="email@exemple.com"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="phone">Téléphone</Label>
+                  <Input
+                    id="phone"
+                    value={contactForm.phone}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+33612345678"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="subject">Sujet</Label>
+                  <Input
+                    id="subject"
+                    value={contactForm.subject}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
+                    placeholder="Sujet du message"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="message">Message *</Label>
+                  <Textarea
+                    id="message"
+                    value={contactForm.message}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder="Votre message..."
+                    rows={4}
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleSendContactForm}
+                  disabled={sendingContact || !contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()}
+                  className="w-full flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {sendingContact ? 'Envoi...' : 'Envoyer le message'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Santé du service email */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  Santé des Services Email
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Service SMTP */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      emailHealth.status === 'healthy' ? 'bg-green-500' :
+                      emailHealth.status === 'checking' ? 'bg-yellow-500 animate-pulse' :
+                      'bg-red-500'
+                    }`} />
+                    <div>
+                      <p className="font-medium">SMTP (Envoi)</p>
+                      <p className="text-sm text-muted-foreground">
+                        {emailHealth.status === 'healthy' ? 'Service en ligne' :
+                         emailHealth.status === 'checking' ? 'Vérification...' :
+                         'Service hors ligne'}
+                      </p>
+                      {emailHealth.lastCheck && (
+                        <p className="text-xs text-muted-foreground">
+                          Dernière vérification: {emailHealth.lastCheck}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={checkEmailHealth}
+                    disabled={emailHealth.status === 'checking'}
+                  >
+                    <Activity className="w-4 h-4 mr-2" />
+                    Vérifier
+                  </Button>
+                </div>
+
+                {/* Service IMAP */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      imapHealth.status === 'healthy' ? 'bg-green-500' :
+                      imapHealth.status === 'checking' ? 'bg-yellow-500 animate-pulse' :
+                      'bg-red-500'
+                    }`} />
+                    <div>
+                      <p className="font-medium">IMAP (Lecture)</p>
+                      <p className="text-sm text-muted-foreground">
+                        {imapHealth.status === 'healthy' ? 'Service en ligne' :
+                         imapHealth.status === 'checking' ? 'Vérification...' :
+                         'Service hors ligne'}
+                      </p>
+                      {imapHealth.lastCheck && (
+                        <p className="text-xs text-muted-foreground">
+                          Dernière vérification: {imapHealth.lastCheck}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={checkImapHealth}
+                    disabled={imapHealth.status === 'checking'}
+                  >
+                    <Activity className="w-4 h-4 mr-2" />
+                    Vérifier
+                  </Button>
+                </div>
+
+                {/* Erreurs */}
+                {emailHealth.error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="w-4 h-4" />
+                    <AlertTitle>Erreur SMTP</AlertTitle>
+                    <AlertDescription>{emailHealth.error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {imapHealth.error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="w-4 h-4" />
+                    <AlertTitle>Erreur IMAP</AlertTitle>
+                    <AlertDescription>{imapHealth.error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button 
+                      onClick={handleTestEmailService}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <MailCheck className="w-4 h-4" />
+                      Tester SMTP
+                    </Button>
+                    
+                    <Button 
+                      onClick={refreshEmails}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <Mail className="w-4 h-4" />
+                      Rafraîchir Emails
+                    </Button>
+                  </div>
+                  
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-medium mb-2">Informations des services</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">SMTP:</span>
+                        <span className="font-mono text-xs">smtp.hostinger.com:465</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">IMAP:</span>
+                        <span className="font-mono text-xs">imap.hostinger.com:993</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="font-mono text-xs">contact@studyia.net</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

@@ -2,13 +2,15 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { jwtDecode } from 'jwt-decode';
 import { authService } from '@/lib/api';
 
-// Mapping from backend roles to frontend roles
-const roleMapping: { [key: string]: UserRole } = {
+// Mapping des rôles backend vers frontend
+const roleMapping: Record<string, UserRole> = {
   superadmin: 'admin',
   admin: 'admin', 
   secretary: 'secretary',
   accountant: 'accountant',
   comptable: 'accountant',  // Ajout pour le rôle en français
+  secretaire: 'secretary', // Support français
+  administrateur: 'admin', // Support français
 };
 
 export type UserRole = 'admin' | 'secretary' | 'accountant';

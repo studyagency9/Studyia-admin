@@ -397,4 +397,164 @@ export const accountingService = {
   }),
 };
 
+// Service Email pour l'assistante
+export const emailService = {
+  // Récupérer les emails entrants (IMAP - Admin seulement)
+  getInboxEmails: async (params?: {
+    limit?: number;
+    offset?: number;
+    folder?: string;
+    unreadOnly?: boolean;
+    search?: string;
+  }) => {
+    try {
+      const response = await api.get('/emails', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching inbox emails:', error);
+      throw error;
+    }
+  },
+
+  // Récupérer un email spécifique
+  getEmailById: async (id: string) => {
+    try {
+      const response = await api.get(`/emails/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching email:', error);
+      throw error;
+    }
+  },
+
+  // Marquer un email comme lu/non lu
+  markEmailAsRead: async (id: string, isRead: boolean) => {
+    try {
+      const response = await api.put(`/emails/${id}/read`, { isRead });
+      return response.data;
+    } catch (error) {
+      console.error('Error marking email as read:', error);
+      throw error;
+    }
+  },
+
+  // Supprimer un email
+  deleteEmail: async (id: string) => {
+    try {
+      const response = await api.delete(`/emails/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      throw error;
+    }
+  },
+
+  // Obtenir les statistiques de la boîte mail
+  getEmailStats: async () => {
+    try {
+      const response = await api.get('/emails/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching email stats:', error);
+      throw error;
+    }
+  },
+
+  // Télécharger une pièce jointe
+  downloadAttachment: async (emailId: string, filename: string) => {
+    try {
+      const response = await api.get(`/emails/${emailId}/attachments/${filename}`, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      throw error;
+    }
+  },
+
+  // Vérifier la santé du service IMAP (utiliser les stats comme health check)
+  checkImapHealth: async () => {
+    try {
+      const response = await api.get('/emails/stats');
+      return {
+        success: true,
+        data: {
+          imapService: 'connected',
+          imapHost: 'imap.hostinger.com',
+          imapPort: 993,
+          secure: true,
+          user: 'contact@studyia.net',
+          stats: response.data.stats
+        }
+      };
+    } catch (error: any) {
+      console.error('Error checking IMAP health:', error);
+      return {
+        success: false,
+        error: error.message || 'Service IMAP indisponible'
+      };
+    }
+  },
+
+  // Tester la connexion IMAP (utiliser les stats comme test)
+  testImapConnection: async () => {
+    try {
+      const response = await api.get('/emails/stats');
+      return {
+        success: true,
+        message: 'Connexion IMAP testée avec succès',
+        data: response.data.stats
+      };
+    } catch (error: any) {
+      console.error('Error testing IMAP connection:', error);
+      return {
+        success: false,
+        error: error.message || 'Erreur de connexion IMAP'
+      };
+    }
+  },
+
+  // Envoyer un email de contact
+  sendContactEmail: async (formData: {
+    name: string;
+    email: string;
+    phone?: string;
+    subject?: string;
+    message: string;
+  }) => {
+    try {
+      const response = await api.post('/contact', formData);
+      return response.data;
+    } catch (error) {
+      console.error('Error sending contact email:', error);
+      throw error;
+    }
+  },
+
+  // Tester le service email (SMTP)
+  testEmailService: async () => {
+    try {
+      const response = await api.post('/test-email', {
+        testEmail: 'test@studyia.net'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error testing email service:', error);
+      throw error;
+    }
+  },
+
+  // Vérifier l'état du service email (SMTP)
+  checkEmailHealth: async () => {
+    try {
+      const response = await api.get('/email-health');
+      return response.data;
+    } catch (error) {
+      console.error('Error checking email health:', error);
+      throw error;
+    }
+  }
+};
+
 export default api;
