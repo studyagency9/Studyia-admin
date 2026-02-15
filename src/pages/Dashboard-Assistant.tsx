@@ -33,7 +33,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { useAuth } from '@/contexts/AuthContext';
-import { dashboardService, associatesService, invoicesService, emailService } from '@/lib/api';
+import { dashboardService, associatesService, invoicesService, emailService, financeService, personnelService } from '@/lib/api';
+import api from '@/lib/api';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +80,26 @@ interface WithdrawalRequest {
   status: 'pending' | 'approved' | 'rejected';
   bankInfo: string;
   requestDate: string;
+}
+
+interface PersonnelWithCV {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  phoneNumber: string;
+  position: string;
+  cvId: string;
+  cvPdfUrl: string;
+  additionalInfo: {
+    experience?: string;
+    skills?: string[];
+    salary?: string;
+    portfolio?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface InvoiceData {
@@ -131,6 +152,9 @@ export default function Dashboard() {
     error?: string;
   }>({ status: 'checking' });
 
+  // État pour le personnel avec CV
+  const [personnelWithCVs, setPersonnelWithCVs] = useState<PersonnelWithCV[]>([]);
+
   // Vérifier si l'utilisateur est un assistant
   const isAssistant = user?.role === 'secretary';
 
@@ -146,6 +170,7 @@ export default function Dashboard() {
           fetchTopCommercial(),
           fetchWithdrawals(),
           fetchPendingInvoices(),
+          fetchPersonnelWithCVs(),
         ]);
 
       } catch (err) {
@@ -356,46 +381,62 @@ export default function Dashboard() {
   };
 
   const fetchWithdrawals = async () => {
-    // Simuler des demandes de retrait
-    const mockWithdrawals: WithdrawalRequest[] = [
-      {
-        id: '1',
-        commercial: {
-          name: 'Jean Dupont',
-          email: 'jean.dupont@email.com'
-        },
-        amount: 1500,
-        date: '2026-02-12T08:00:00',
-        status: 'pending',
-        bankInfo: 'Bank of Africa - ****1234',
-        requestDate: '2026-02-12T08:00:00'
-      },
-      {
-        id: '2',
-        commercial: {
-          name: 'Marie Curie',
-          email: 'marie.curie@email.com'
-        },
-        amount: 850,
-        date: '2026-02-11T15:30:00',
-        status: 'pending',
-        bankInfo: 'Ecobank - ****5678',
-        requestDate: '2026-02-11T15:30:00'
-      },
-      {
-        id: '3',
-        commercial: {
-          name: 'Paul Martin',
-          email: 'paul.martin@email.com'
-        },
-        amount: 2200,
-        date: '2026-02-10T11:15:00',
-        status: 'pending',
-        bankInfo: 'Orange Money - ****9012',
-        requestDate: '2026-02-10T11:15:00'
+    try {
+      console.log('🔄 Fetching withdrawals from API...');
+      const response = await financeService.getWithdrawals();
+      console.log('✅ Withdrawals API response:', response);
+      
+      if (response.data?.data?.withdrawals) {
+        const formattedWithdrawals: WithdrawalRequest[] = response.data.data.withdrawals.map((withdrawal: any) => ({
+          id: withdrawal.id,
+          commercial: {
+            name: withdrawal.associate?.name || 'Commercial inconnu',
+            email: withdrawal.associate?.email || 'email@inconnu.com'
+          },
+          amount: withdrawal.amount || 0,
+          date: withdrawal.requestDate || new Date().toISOString(),
+          status: withdrawal.status || 'pending',
+          bankInfo: withdrawal.paymentMethod || 'Non spécifié',
+          requestDate: withdrawal.requestDate || new Date().toISOString()
+        }));
+        setWithdrawals(formattedWithdrawals);
+        console.log('✅ Withdrawals formatted:', formattedWithdrawals);
+      } else {
+        console.log('⚠️ No withdrawals found in API response');
+        setWithdrawals([]);
       }
-    ];
-    setWithdrawals(mockWithdrawals);
+    } catch (error) {
+      console.error('❌ Error fetching withdrawals:', error);
+      // Fallback avec des données simulées pour le développement
+      const mockWithdrawals: WithdrawalRequest[] = [
+        {
+          id: 'demo-1',
+          commercial: {
+            name: 'Jean Dupont (Demo)',
+            email: 'jean.dupont@email.com'
+          },
+          amount: 1500,
+          date: '2026-02-12T08:00:00',
+          status: 'pending',
+          bankInfo: 'Bank of Africa - ****1234',
+          requestDate: '2026-02-12T08:00:00'
+        },
+        {
+          id: 'demo-2',
+          commercial: {
+            name: 'Marie Curie (Demo)',
+            email: 'marie.curie@email.com'
+          },
+          amount: 850,
+          date: '2026-02-11T15:30:00',
+          status: 'pending',
+          bankInfo: 'Ecobank - ****5678',
+          requestDate: '2026-02-11T15:30:00'
+        }
+      ];
+      setWithdrawals(mockWithdrawals);
+      console.log('📋 Using mock withdrawals for demo');
+    }
   };
 
   const fetchPendingInvoices = async () => {
@@ -452,6 +493,103 @@ export default function Dashboard() {
         }
       ];
       setInvoices(mockInvoices);
+    }
+  };
+
+  const fetchPersonnelWithCVs = async () => {
+    try {
+      console.log('🔄 Fetching personnel with CVs from API...');
+      
+      // Essayer d'abord l'endpoint /admin/personnel
+      let response;
+      try {
+        response = await personnelService.getList();
+        console.log('✅ Personnel API response (admin/personnel):', response);
+      } catch (adminError) {
+        console.log('⚠️ Admin personnel endpoint failed, trying /personnel...');
+        // Fallback vers /personnel
+        response = await api.get('/personnel');
+        console.log('✅ Personnel API response (personnel):', response);
+      }
+      
+      if (response.data?.data?.personnel) {
+        const personnelData = response.data.data.personnel;
+        setPersonnelWithCVs(personnelData);
+        console.log('✅ Personnel with CVs loaded:', personnelData.length);
+        console.log('📋 Personnel details:', personnelData.map((p: any) => ({
+          id: p._id,
+          name: `${p.firstName} ${p.lastName}`,
+          position: p.position,
+          gender: p.gender,
+          phone: p.phoneNumber,
+          hasCV: !!p.cvPdfUrl,
+          experience: p.additionalInfo?.experience,
+          skills: p.additionalInfo?.skills?.slice(0, 2),
+          createdAt: p.createdAt
+        })));
+      } else if (response.data?.personnel) {
+        const personnelData = response.data.personnel;
+        setPersonnelWithCVs(personnelData);
+        console.log('✅ Personnel with CVs loaded (direct):', personnelData.length);
+        console.log('📋 Personnel details:', personnelData.map((p: any) => ({
+          id: p._id,
+          name: `${p.firstName} ${p.lastName}`,
+          position: p.position,
+          gender: p.gender,
+          phone: p.phoneNumber,
+          hasCV: !!p.cvPdfUrl,
+          experience: p.additionalInfo?.experience,
+          skills: p.additionalInfo?.skills?.slice(0, 2),
+          createdAt: p.createdAt
+        })));
+      } else {
+        console.log('⚠️ No personnel found in API response, checking structure...');
+        console.log('📋 Response structure:', JSON.stringify(response.data, null, 2));
+        setPersonnelWithCVs([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching personnel with CVs:', error);
+      // Fallback avec des données simulées pour le développement
+      const mockPersonnel: PersonnelWithCV[] = [
+        {
+          _id: 'demo-1',
+          firstName: 'Jean',
+          lastName: 'Dupont (Demo)',
+          dateOfBirth: '1990-01-15',
+          gender: 'M',
+          phoneNumber: '+2250700000000',
+          position: 'Développeur Senior',
+          cvId: 'cv-demo-1',
+          cvPdfUrl: '#',
+          additionalInfo: {
+            experience: '5 ans',
+            skills: ['JavaScript', 'Node.js', 'React'],
+            salary: '800000 FCFA'
+          },
+          createdAt: '2026-02-15T20:23:45.123Z',
+          updatedAt: '2026-02-15T20:23:45.123Z'
+        },
+        {
+          _id: 'demo-2',
+          firstName: 'Marie',
+          lastName: 'Martin (Demo)',
+          dateOfBirth: '1992-05-20',
+          gender: 'F',
+          phoneNumber: '+2250700000001',
+          position: 'Designer UX/UI',
+          cvId: 'cv-demo-2',
+          cvPdfUrl: '#',
+          additionalInfo: {
+            experience: '3 ans',
+            skills: ['Figma', 'Adobe XD', 'Sketch'],
+            portfolio: 'https://marie-design.com'
+          },
+          createdAt: '2026-02-14T15:30:00.000Z',
+          updatedAt: '2026-02-14T15:30:00.000Z'
+        }
+      ];
+      setPersonnelWithCVs(mockPersonnel);
+      console.log('📋 Using mock personnel for demo');
     }
   };
 
@@ -664,35 +802,65 @@ export default function Dashboard() {
 
   const handleApproveWithdrawal = async (withdrawalId: string) => {
     try {
-      console.log('Approving withdrawal:', withdrawalId);
+      console.log('🔄 Approving withdrawal:', withdrawalId);
       
+      // Appeler l'API pour approuver le retrait
+      const response = await financeService.updateWithdrawalStatus(withdrawalId, 'completed');
+      console.log('✅ Withdrawal approved:', response);
+      
+      // Mettre à jour l'état local
       setWithdrawals(prev => prev.map(w => 
         w.id === withdrawalId 
           ? { ...w, status: 'approved' as const }
           : w
       ));
 
-      alert('Demande de retrait approuvée !');
+      alert('✅ Demande de retrait approuvée avec succès !');
     } catch (err) {
-      console.error('Error approving withdrawal:', err);
-      alert('Erreur lors de l\'approbation.');
+      console.error('❌ Error approving withdrawal:', err);
+      
+      // Mise à jour locale même si l'API échoue (pour le développement)
+      setWithdrawals(prev => prev.map(w => 
+        w.id === withdrawalId 
+          ? { ...w, status: 'approved' as const }
+          : w
+      ));
+      
+      alert('⚠️ Demande approuvée localement (API indisponible)');
     }
   };
 
   const handleRejectWithdrawal = async (withdrawalId: string) => {
     try {
-      console.log('Rejecting withdrawal:', withdrawalId);
+      console.log('🔄 Rejecting withdrawal:', withdrawalId);
       
+      // Demander une raison pour le rejet
+      const reason = prompt('Veuillez indiquer la raison du rejet:');
+      if (!reason) return;
+      
+      // Appeler l'API pour rejeter le retrait
+      const response = await financeService.updateWithdrawalStatus(withdrawalId, 'rejected');
+      console.log('✅ Withdrawal rejected:', response);
+      
+      // Mettre à jour l'état local
       setWithdrawals(prev => prev.map(w => 
         w.id === withdrawalId 
           ? { ...w, status: 'rejected' as const }
           : w
       ));
 
-      alert('Demande de retrait rejetée !');
+      alert('✅ Demande de retrait rejetée avec succès !');
     } catch (err) {
-      console.error('Error rejecting withdrawal:', err);
-      alert('Erreur lors du rejet.');
+      console.error('❌ Error rejecting withdrawal:', err);
+      
+      // Mise à jour locale même si l'API échoue (pour le développement)
+      setWithdrawals(prev => prev.map(w => 
+        w.id === withdrawalId 
+          ? { ...w, status: 'rejected' as const }
+          : w
+      ));
+      
+      alert('⚠️ Demande rejetée localement (API indisponible)');
     }
   };
 
@@ -801,10 +969,14 @@ export default function Dashboard() {
       </section>
 
       <Tabs defaultValue="email-hub" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="email-hub" className="flex items-center gap-2">
             <Mail className="w-4 h-4" />
             Email Hub
+          </TabsTrigger>
+          <TabsTrigger value="withdrawals" className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />
+            Retraits
           </TabsTrigger>
           <TabsTrigger value="cvs" className="flex items-center gap-2">
             <FileIcon className="w-4 h-4" />
@@ -825,6 +997,86 @@ export default function Dashboard() {
           <EmailHub />
         </TabsContent>
 
+        {/* Retraits Section */}
+        <TabsContent value="withdrawals" className="space-y-6">
+          <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <CreditCard className="w-5 h-5" />
+                Demandes de retrait en attente ({withdrawals.filter(w => w.status === 'pending').length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {withdrawals.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CreditCard className="w-12 h-12 mx-auto mb-4 text-amber-500 opacity-50" />
+                    <p className="text-lg font-medium">Aucune demande de retrait</p>
+                    <p className="text-sm">Les demandes apparaîtront ici lorsqu'elles seront soumises</p>
+                  </div>
+                ) : (
+                  withdrawals.map((withdrawal) => (
+                    <div key={withdrawal.id} className="border rounded-lg p-4 bg-white/60 dark:bg-slate-700/60 backdrop-blur-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-medium">{withdrawal.commercial.name}</h4>
+                          <p className="text-sm text-muted-foreground">{withdrawal.commercial.email}</p>
+                        </div>
+                        <Badge variant={
+                          withdrawal.status === 'pending' ? 'secondary' :
+                          withdrawal.status === 'approved' ? 'default' : 'destructive'
+                        }>
+                          {withdrawal.status === 'pending' ? 'En attente' :
+                           withdrawal.status === 'approved' ? 'Approuvé' : 'Rejeté'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Montant</p>
+                          <p className="font-semibold text-green-600">{withdrawal.amount.toLocaleString('fr-FR')} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Méthode</p>
+                          <p className="font-medium">{withdrawal.bankInfo}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Date demande</p>
+                          <p className="font-medium">{new Date(withdrawal.requestDate).toLocaleDateString('fr-FR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Statut</p>
+                          <p className="font-medium">{withdrawal.status}</p>
+                        </div>
+                      </div>
+
+                      {withdrawal.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => handleApproveWithdrawal(withdrawal.id)}
+                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Approuver
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={() => handleRejectWithdrawal(withdrawal.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                            Rejeter
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Gestion CVs Section */}
         <TabsContent value="cvs" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -832,19 +1084,82 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                   <FileIcon className="w-5 h-5" />
-                  CVs Reçus Aujourd'hui
+                  Personnel avec CVs ({personnelWithCVs.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileIcon className="w-12 h-12 mx-auto mb-4 text-blue-500 opacity-50" />
-                  <p className="text-lg font-medium">Aucun CV reçu aujourd'hui</p>
-                  <p className="text-sm">Les CVs apparaîtront ici lorsqu'ils seront envoyés par email</p>
-                  <Button variant="outline" className="mt-4 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20">
-                    <Search className="w-4 h-4 mr-2" />
-                    Vérifier les emails
-                  </Button>
-                </div>
+                {personnelWithCVs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileIcon className="w-12 h-12 mx-auto mb-4 text-blue-500 opacity-50" />
+                    <p className="text-lg font-medium">Aucun personnel avec CV</p>
+                    <p className="text-sm">Les personnes avec CV apparaîtront ici</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {personnelWithCVs.map((person) => (
+                      <div key={person._id} className="border rounded-lg p-3 bg-white/60 dark:bg-slate-700/60 backdrop-blur-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <h4 className="font-medium">{person.firstName} {person.lastName}</h4>
+                            <p className="text-sm text-muted-foreground">{person.position}</p>
+                          </div>
+                          <Badge variant="secondary">
+                            {person.gender === 'M' ? 'Homme' : 'Femme'}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Téléphone</p>
+                            <p className="font-medium">{person.phoneNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Expérience</p>
+                            <p className="font-medium">{person.additionalInfo?.experience || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        {person.additionalInfo?.skills && (
+                          <div className="mb-3">
+                            <p className="text-sm text-muted-foreground mb-1">Compétences</p>
+                            <div className="flex flex-wrap gap-1">
+                              {person.additionalInfo.skills.slice(0, 3).map((skill, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {person.additionalInfo.skills.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{person.additionalInfo.skills.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => window.open(person.cvPdfUrl, '_blank')}
+                            className="flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" />
+                            CV
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3" />
+                            Contacter
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -852,15 +1167,36 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
                   <Users className="w-5 h-5" />
-                  Candidatures en Cours
+                  Statistiques CVs
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
-                  <p className="text-lg font-medium">Aucune candidature en cours</p>
-                  <p className="text-sm">Suivez les candidatures ici</p>
-                  <Button variant="outline" className="mt-4 border-green-200 text-green-600 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total CVs</span>
+                    <span className="font-semibold">{personnelWithCVs.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Hommes</span>
+                    <span className="font-semibold">
+                      {personnelWithCVs.filter(p => p.gender === 'M').length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Femmes</span>
+                    <span className="font-semibold">
+                      {personnelWithCVs.filter(p => p.gender === 'F').length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Ajoutés aujourd'hui</span>
+                    <span className="font-semibold">
+                      {personnelWithCVs.filter(p => 
+                        new Date(p.createdAt).toDateString() === new Date().toDateString()
+                      ).length}
+                    </span>
+                  </div>
+                  <Button variant="outline" className="w-full mt-4">
                     <Filter className="w-4 h-4 mr-2" />
                     Filtrer les candidats
                   </Button>
@@ -927,7 +1263,7 @@ export default function Dashboard() {
             />
             <KPICard
               title="CVs reçus cette semaine"
-              value={0}
+              value={personnelWithCVs.length}
               icon={<FileIcon className="w-5 h-5" />}
               variant="success"
               delay={0.1}

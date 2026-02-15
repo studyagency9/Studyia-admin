@@ -172,6 +172,9 @@ export const API_ENDPOINTS = {
     GENERAL: '/admin/settings',
     USERS: '/admin/settings/users',
   },
+  PERSONNEL: {
+    LIST: '/admin/personnel',
+  },
 } as const;
 
 // Types pour les réponses API
@@ -555,6 +558,16 @@ export const emailService = {
       throw error;
     }
   }
+};
+
+// Personnel Service
+export const personnelService = {
+  getList: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) =>
+    api.get<ApiResponse<{ personnel: any[]; pagination: any }>>(API_ENDPOINTS.PERSONNEL.LIST, { params }),
 };
 
 export default api;
