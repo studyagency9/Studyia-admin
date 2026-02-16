@@ -55,7 +55,7 @@ export default function UserCredentialsPage() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!credentials || !pdfRef.current) return;
+    if (!credentials) return;
     
     setIsGeneratingPDF(true);
     try {
@@ -70,82 +70,89 @@ export default function UserCredentialsPage() {
       const darkBlue = [15, 35, 75] as [number, number, number]; // #0F234B
       const gray = [71, 85, 105] as [number, number, number]; // #475569
       const accentGold = [212, 175, 55] as [number, number, number]; // #D4AF37
+      const successGreen = [34, 197, 94] as [number, number, number]; // #22C55E
       
       // En-tête premium avec dégradé bleu
       pdf.setFillColor(...primaryBlue);
-      pdf.rect(0, 0, pageWidth, 60, 'F');
+      pdf.rect(0, 0, pageWidth, 70, 'F');
       
       // Ligne décorative
       pdf.setFillColor(...accentGold);
-      pdf.rect(0, 58, pageWidth, 2, 'F');
+      pdf.rect(0, 68, pageWidth, 2, 'F');
       
-      // Titre premium
+      // Logo et titre premium
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(32);
+      pdf.setFontSize(36);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('STUDYIA CAREER', pageWidth / 2, 25, { align: 'center' });
+      pdf.text('STUDIA CAREER', pageWidth / 2, 25, { align: 'center' });
+      
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Plateforme Professionnelle de Création de CV', pageWidth / 2, 38, { align: 'center' });
       
       pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Plateforme Professionnelle de Création de CV', pageWidth / 2, 35, { align: 'center' });
-      
-      pdf.setFontSize(12);
-      pdf.text('Identifiants de Connexion Partenaire', pageWidth / 2, 45, { align: 'center' });
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('✨ DOSSIER D\'ACCÈS PARTENAIRE ✨', pageWidth / 2, 52, { align: 'center' });
       
       // Ligne de séparation premium
       pdf.setDrawColor(255, 255, 255);
       pdf.setLineWidth(0.5);
-      pdf.line(30, 52, pageWidth - 30, 52);
+      pdf.line(30, 62, pageWidth - 30, 62);
       
       // Réinitialiser les couleurs
       pdf.setTextColor(0, 0, 0);
       pdf.setFont('helvetica', 'normal');
       
       // Section Informations du Partenaire
-      let yPosition = 80;
+      let yPosition = 90;
       
       // Titre de section avec fond premium
       pdf.setFillColor(...lightBlue);
-      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 16, 3, 3, 'F');
+      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 18, 3, 3, 'F');
       pdf.setTextColor(...darkBlue);
-      pdf.setFontSize(16);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('INFORMATIONS DU PARTENAIRE', pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text('👤 INFORMATIONS DU PARTENAIRE', pageWidth / 2, yPosition, { align: 'center' });
       
-      yPosition += 25;
+      yPosition += 28;
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
       
       // Informations du partenaire avec mise en page premium
       const partnerInfo = [
-        { label: 'Nom complet:', value: credentials.name || '', bold: true },
-        { label: 'Entreprise:', value: credentials.company || '', bold: true },
+        { label: 'Nom complet:', value: credentials.name || 'Non spécifié', bold: true },
+        { label: 'Entreprise:', value: credentials.company || 'Non spécifiée', bold: true },
         { label: 'Email professionnel:', value: credentials.email },
-        { label: 'Rôle:', value: 'Partenaire Premium' },
+        { label: 'Rôle:', value: credentials.role || 'Partenaire Premium' },
         { label: 'Plan d\'abonnement:', value: credentials.plan ? credentials.plan.charAt(0).toUpperCase() + credentials.plan.slice(1) : 'Starter' },
         { label: 'Code de parrainage:', value: credentials.referralCode || 'N/A' },
-        { label: 'Date de début:', value: new Date(credentials.createdAt).toLocaleDateString('fr-CM', { 
+        { label: 'Date de début:', value: credentials.createdAt ? new Date(credentials.createdAt).toLocaleDateString('fr-FR', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }) : new Date().toLocaleDateString('fr-FR', { 
           weekday: 'long', 
           year: 'numeric', 
           month: 'long', 
           day: 'numeric' 
         }) },
-        { label: 'Date de fin d\'abonnement:', value: credentials.planRenewalDate ? 
-          new Date(credentials.planRenewalDate).toLocaleDateString('fr-CM', { 
+        { label: 'Date de renouvellement:', value: credentials.planRenewalDate ? 
+          new Date(credentials.planRenewalDate).toLocaleDateString('fr-FR', { 
             weekday: 'long', 
             year: 'numeric', 
             month: 'long', 
             day: 'numeric' 
           }) : 
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-CM', { 
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR', { 
             weekday: 'long', 
             year: 'numeric', 
             month: 'long', 
             day: 'numeric' 
           })
         },
-        { label: 'Généré le:', value: new Date().toLocaleDateString('fr-CM', { 
+        { label: 'Généré le:', value: new Date().toLocaleDateString('fr-FR', { 
           weekday: 'long', 
           year: 'numeric', 
           month: 'long', 
@@ -173,14 +180,14 @@ export default function UserCredentialsPage() {
       yPosition += 20;
       
       // Titre de section
-      pdf.setFillColor(...lightBlue);
-      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 16, 3, 3, 'F');
-      pdf.setTextColor(...darkBlue);
-      pdf.setFontSize(16);
+      pdf.setFillColor(...successGreen);
+      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 18, 3, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('PROCÉDURE DE CONNEXION', pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text('🚀 PROCÉDURE DE CONNEXION', pageWidth / 2, yPosition, { align: 'center' });
       
-      yPosition += 25;
+      yPosition += 28;
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
@@ -196,7 +203,7 @@ export default function UserCredentialsPage() {
         '6. Vous serez redirigé vers votre tableau de bord partenaire'
       ];
       
-      instructions.forEach(instruction => {
+      instructions.forEach((instruction, index) => {
         if (instruction.includes('Email') || instruction.includes('Mot de passe')) {
           pdf.setFont('helvetica', 'bold');
         } else {
@@ -211,13 +218,13 @@ export default function UserCredentialsPage() {
       
       // Titre de section
       pdf.setFillColor(...accentGold);
-      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 16, 3, 3, 'F');
+      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 18, 3, 3, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(16);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('AVANTAGES DE VOTRE ABONNEMENT', pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text('⭐ AVANTAGES DE VOTRE ABONNEMENT', pageWidth / 2, yPosition, { align: 'center' });
       
-      yPosition += 25;
+      yPosition += 28;
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'normal');
@@ -242,13 +249,13 @@ export default function UserCredentialsPage() {
       
       // Titre de section
       pdf.setFillColor(220, 38, 38); // Rouge pour l'attention
-      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 16, 3, 3, 'F');
+      pdf.roundedRect(25, yPosition - 12, pageWidth - 50, 18, 3, 3, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(16);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('⚠ INFORMATIONS DE SÉCURITÉ', pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text('⚠️ INFORMATIONS DE SÉCURITÉ', pageWidth / 2, yPosition, { align: 'center' });
       
-      yPosition += 25;
+      yPosition += 28;
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'normal');
@@ -268,7 +275,7 @@ export default function UserCredentialsPage() {
       });
       
       // Pied de page premium
-      const footerY = pageHeight - 40;
+      const footerY = pageHeight - 50;
       
       // Ligne décorative
       pdf.setFillColor(...accentGold);
@@ -276,22 +283,22 @@ export default function UserCredentialsPage() {
       
       // Fond pied de page
       pdf.setFillColor(...primaryBlue);
-      pdf.rect(0, footerY, pageWidth, 40, 'F');
+      pdf.rect(0, footerY, pageWidth, 50, 'F');
       
       // Informations de contact
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(12);
+      pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('STUDYIA CAREER', pageWidth / 2, footerY + 10, { align: 'center' });
+      pdf.text('STUDIA CAREER', pageWidth / 2, footerY + 12, { align: 'center' });
       
-      pdf.setFontSize(9);
+      pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('Plateforme Professionnelle de Création de CV', pageWidth / 2, footerY + 18, { align: 'center' });
-      pdf.text('career.studyia.net | Douala, Cameroun', pageWidth / 2, footerY + 25, { align: 'center' });
-      pdf.text('contact@studyia.net | +237 671373978 / +237 686430454', pageWidth / 2, footerY + 32, { align: 'center' });
+      pdf.text('Plateforme Professionnelle de Création de CV', pageWidth / 2, footerY + 22, { align: 'center' });
+      pdf.text('🌐 career.studyia.net | 📍 Douala, Cameroun', pageWidth / 2, footerY + 32, { align: 'center' });
+      pdf.text('📧 contact@studyia.net | 📱 +237 671373978 / +237 686430454', pageWidth / 2, footerY + 42, { align: 'center' });
       
       // Télécharger le PDF avec nom de fichier professionnel
-      const fileName = `Studyia-Credentials-${credentials.name?.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Studia-Credentials-${credentials.name?.replace(/\s+/g, '-') || 'Partner'}-${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
     } catch (error) {
@@ -484,33 +491,56 @@ export default function UserCredentialsPage() {
 
   const handleDownloadTXT = () => {
     if (!credentials) return;
+    
+    try {
+      const txtContent = `
+========================================
+🎉 BIENVENUE CHEZ STUDIA CAREER ! 🎉
+========================================
 
-    const content = `
-IDENTIFIANTS DE CONNEXION - STUDYIA CAREER
-==========================================
-
-INFORMATIONS DU PARTENAIRE
-------------------------
-Nom complet: ${credentials.name}
-Entreprise: ${credentials.company || 'N/A'}
+👤 INFORMATIONS DU PARTENAIRE
+========================================
+Nom complet: ${credentials.name || 'Non spécifié'}
+Entreprise: ${credentials.company || 'Non spécifiée'}
 Email professionnel: ${credentials.email}
-Rôle: Partenaire Premium
+Rôle: ${credentials.role || 'Partenaire Premium'}
 Plan d'abonnement: ${credentials.plan ? credentials.plan.charAt(0).toUpperCase() + credentials.plan.slice(1) : 'Starter'}
 Code de parrainage: ${credentials.referralCode || 'N/A'}
-Date de début: ${new Date(credentials.createdAt).toLocaleDateString('fr-CM', { 
-  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+Date de début: ${credentials.createdAt ? new Date(credentials.createdAt).toLocaleDateString('fr-FR', { 
+  weekday: 'long', 
+  year: 'numeric', 
+  month: 'long', 
+  day: 'numeric' 
+}) : new Date().toLocaleDateString('fr-FR', { 
+  weekday: 'long', 
+  year: 'numeric', 
+  month: 'long', 
+  day: 'numeric' 
 })}
-Date de fin d'abonnement: ${credentials.planRenewalDate ? 
-  new Date(credentials.planRenewalDate).toLocaleDateString('fr-CM', { 
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+Date de renouvellement: ${credentials.planRenewalDate ? 
+  new Date(credentials.planRenewalDate).toLocaleDateString('fr-FR', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
   }) : 
-  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-CM', { 
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-  })
-}
+  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })}
+Généré le: ${new Date().toLocaleDateString('fr-FR', { 
+  weekday: 'long', 
+  year: 'numeric', 
+  month: 'long', 
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}
 
-PROCÉDURE DE CONNEXION
----------------------
+🚀 PROCÉDURE DE CONNEXION
+========================================
 1. Accédez au site web : career.studyia.net
 2. Faites défiler jusqu'en bas de la page d'accueil
 3. Cliquez sur "Connexion Partenaire" dans le pied de page
@@ -520,8 +550,8 @@ PROCÉDURE DE CONNEXION
 5. Cliquez sur "Se connecter" pour accéder à votre espace
 6. Vous serez redirigé vers votre tableau de bord partenaire
 
-AVANTAGES DE VOTRE ABONNEMENT
-------------------------------
+⭐ AVANTAGES DE VOTRE ABONNEMENT
+========================================
 • Accès illimité à la plateforme de création de CV
 • Templates de CV professionnels et modernes
 • Personnalisation avancée avec votre branding
@@ -530,8 +560,8 @@ AVANTAGES DE VOTRE ABONNEMENT
 • Support prioritaire 24/7
 • Mises à jour automatiques des templates
 
-⚠ INFORMATIONS DE SÉCURITÉ
----------------------------
+⚠️ INFORMATIONS DE SÉCURITÉ
+========================================
 • Conservez ces informations dans un endroit sécurisé et confidentiel
 • Modifiez votre mot de passe lors de votre première connexion
 • Ne partagez jamais vos identifiants avec des tiers non autorisés
@@ -539,43 +569,58 @@ AVANTAGES DE VOTRE ABONNEMENT
 • Votre abonnement est renouvelable automatiquement chaque mois
 • Vous pouvez résilier votre abonnement à tout moment depuis votre espace
 
-POUR NOUS CONTACTER
-------------------
-Site web : career.studyia.net
-Location : Douala, Cameroun
-Email : contact@studyia.net
-Téléphone : +237 671373978 / +237 686430454
-
+========================================
+📞 CONTACT & SUPPORT
+========================================
+STUDIA CAREER
 Plateforme Professionnelle de Création de CV
-    `.trim();
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Studyia-Credentials-${credentials.name?.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+🌐 career.studyia.net
+📍 Douala, Cameroun
+📧 contact@studyia.net
+📱 +237 671373978 / +237 686430454
+========================================
+      `;
+      
+      // Créer et télécharger le fichier TXT
+      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Studia-Credentials-${credentials.name?.replace(/\s+/g, '-') || 'Partner'}-${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du fichier TXT:', error);
+      alert('Erreur lors de la génération du fichier TXT');
+    }
   };
 
   const handleShare = async () => {
     if (!credentials) return;
 
     const shareData = {
-      title: 'Identifiants de connexion Studyia Career',
-      text: `Email: ${credentials.email}\nMot de passe: ${credentials.password}\nSite: career.studyia.net`,
+      title: '🎉 Identifiants de connexion Studyia Career',
+      text: `👤 ${credentials.name || 'Partenaire'}\n📧 Email: ${credentials.email}\n🌐 Site: career.studyia.net\n🔑 Mot de passe: ${credentials.password}`,
     };
 
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch (err) {
-        console.error('Failed to share:', err);
+      } catch (error) {
+        console.error('Erreur lors du partage:', error);
       }
     } else {
-      await handleCopy(`${shareData.text}`, 'credentials');
+      // Fallback: copier dans le presse-papiers
+      try {
+        await navigator.clipboard.writeText(shareData.text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (error) {
+        console.error('Erreur lors de la copie:', error);
+      }
     }
   };
 
@@ -748,6 +793,61 @@ Plateforme Professionnelle de Création de CV
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Procédure de connexion mise en avant */}
+              <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-blue-500 p-3 rounded-xl shadow-lg">
+                    <Globe className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-900">🚀 Comment se connecter</h3>
+                    <p className="text-blue-700">Suivez ces étapes simples pour accéder à votre espace</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">1</span>
+                      <h4 className="font-semibold text-gray-900">Site web</h4>
+                    </div>
+                    <p className="text-sm text-gray-600 ml-11">Allez sur <strong className="text-blue-600">career.studyia.net</strong></p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">2</span>
+                      <h4 className="font-semibold text-gray-900">Pied de page</h4>
+                    </div>
+                    <p className="text-sm text-gray-600 ml-11">Faites défiler jusqu'en bas</p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">3</span>
+                      <h4 className="font-semibold text-gray-900">Connexion</h4>
+                    </div>
+                    <p className="text-sm text-gray-600 ml-11">Cliquez sur "Connexion Partenaire"</p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">4</span>
+                      <h4 className="font-semibold text-gray-900">Identifiants</h4>
+                    </div>
+                    <p className="text-sm text-gray-600 ml-11">Entrez email et mot de passe</p>
+                  </div>
+                </div>
+                
+                <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="w-5 h-5 text-amber-600" />
+                    <h4 className="font-semibold text-amber-900">📍 Localisation du bouton</h4>
+                  </div>
+                  <p className="text-sm text-amber-800">Le bouton "Connexion Partenaire" se trouve tout en bas de la page d'accueil, dans la section pied de page avec les autres liens de navigation.</p>
                 </div>
               </div>
 

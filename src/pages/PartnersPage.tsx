@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Handshake, Search, Plus, Building, Mail, Phone, TrendingUp, AlertCircle, FileText, Edit, Trash2, Calendar } from 'lucide-react';
+import { Handshake, Search, Plus, Building, Mail, Phone, TrendingUp, AlertCircle, FileText, Edit, Trash2, Calendar, Crown, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -27,32 +27,43 @@ import {
 import { PartnerForm } from '@/components/partners/PartnerForm';
 
 // Define the Partner type based on your API response
+// Interface Partner unifiée et professionnelle
 export interface Partner {
   _id: string;
+  email: string;
   firstName: string;
   lastName: string;
-  email: string;
   phone: string;
   company: string;
   country?: string;
   city?: string;
-  status: 'active' | 'inactive' | 'pending';
-  plan?: string;
+  status: 'active' | 'suspended' | 'inactive' | 'pending';
+  plan: 'starter' | 'pro' | 'business';
+  cvQuota: number;
+  cvUsedThisMonth: number;
+  cvStats: {
+    quota: number;
+    used: number;
+    remaining: number;
+    percentageUsed: number;
+    isLimitReached: boolean;
+    plan: string;
+  };
+  planRenewalDate: string;
   subscriptionStatus?: string;
-  cvUsedThisMonth?: number;
-  monthlyQuota?: number;
-  nextQuotaReset?: string;
   totalCVs: number;
   totalRevenue?: number;
   referralCode: string;
   createdAt: string;
   lastLogin?: string;
-  planRenewalDate?: string;
+  nextQuotaReset?: string;
 }
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   active: { label: 'Actif', variant: 'default' },
+  suspended: { label: 'Suspendu', variant: 'destructive' },
   inactive: { label: 'Inactif', variant: 'secondary' },
+  pending: { label: 'En attente', variant: 'outline' },
 };
 
 export default function PartnersPage() {
@@ -128,17 +139,89 @@ export default function PartnersPage() {
     fetchPartners();
   }, []);
 
-  const filteredPartners = partners.filter((partner) => {
-    const fullName = `${partner.firstName || ''} ${partner.lastName || ''}`.trim();
-    const matchesSearch =
-      fullName.toLowerCase().includes(search.toLowerCase()) ||
-      (partner.email && partner.email.toLowerCase().includes(search.toLowerCase())) ||
-      (partner.company && partner.company.toLowerCase().includes(search.toLowerCase()));
+  // Fonctions utilitaires optimisées (déplacées avant le useMemo)
+  const getPlanInfo = (plan: Partner['plan']) => {
+    const plans = {
+      starter: {
+        name: 'Starter',
+        color: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+        icon: '🌱',
+        quota: 10,
+        features: ['10 CVs/mois', 'Support basic', 'Analytics simple']
+      },
+      pro: {
+        name: 'Pro',
+        color: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+        icon: '⚡',
+        quota: 50,
+        features: ['50 CVs/mois', 'Support prioritaire', 'Analytics avancées', 'Export PDF']
+      },
+      business: {
+        name: 'Business',
+        color: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+        icon: '🚀',
+        quota: 200,
+        features: ['200 CVs/mois', 'Support VIP', 'Analytics complètes', 'Export multi-format', 'API access']
+      }
+    };
+    return plans[plan];
+  };
 
-    const matchesStatus = statusFilter === 'all' || partner.status === statusFilter;
+  const getDaysUntilRenewal = (renewalDate: string) => {
+    const renewal = new Date(renewalDate);
+    const today = new Date();
+    return Math.ceil((renewal.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
 
-    return matchesSearch && matchesStatus;
-  });
+  const getRenewalUrgency = (days: number) => {
+    if (days <= 7) return { level: 'critical', color: 'text-red-500', icon: '⚠️' };
+    if (days <= 15) return { level: 'warning', color: 'text-amber-500', icon: '⏰' };
+    return { level: 'normal', color: 'text-emerald-500', icon: '' };
+  };
+
+  // Optimisations de performance
+  const filteredPartners = useMemo(() => {
+    return partners.filter((partner) => {
+      const fullName = `${partner.firstName} ${partner.lastName}`.trim();
+      const matchesSearch =
+        fullName.toLowerCase().includes(search.toLowerCase()) ||
+        partner.email.toLowerCase().includes(search.toLowerCase()) ||
+        partner.company.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || partner.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [partners, search, statusFilter]);
+
+  const analyticsData = useMemo(() => {
+    const activePartners = partners.filter(p => p.status === 'active');
+    const criticalAlerts = partners.filter(p => {
+      const days = getDaysUntilRenewal(p.planRenewalDate);
+      return days <= 7 || p.cvStats?.isLimitReached;
+    });
+    const avgUsage = partners.length > 0 
+      ? partners.reduce((sum, p) => sum + (p.cvStats?.percentageUsed || 0), 0) / partners.length
+      : 0;
+    
+    return {
+      activePartners: activePartners.length,
+      criticalAlerts: criticalAlerts.length,
+      avgUsage: Math.round(avgUsage),
+      planDistribution: {
+        starter: partners.filter(p => p.plan === 'starter').length,
+        pro: partners.filter(p => p.plan === 'pro').length,
+        business: partners.filter(p => p.plan === 'business').length,
+      }
+    };
+  }, [partners]);
+
+  const handlePartnerAction = useCallback((partner: Partner, action: 'edit' | 'delete') => {
+    if (action === 'edit') {
+      setSelectedPartner(partner);
+      setIsModalOpen(true);
+    } else if (action === 'delete') {
+      handleDeletePartner(partner._id);
+    }
+  }, []);
 
   const formatCurrency = (val: number): string => {
     return new Intl.NumberFormat('fr-CM', {
@@ -146,50 +229,6 @@ export default function PartnersPage() {
       currency: 'XAF',
       maximumFractionDigits: 0,
     }).format(val);
-  };
-
-  // Fonction pour obtenir les informations de plan
-  const getPlanInfo = (plan?: string) => {
-    const plans = {
-      starter: {
-        name: 'Starter',
-        color: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-        icon: '🌱',
-        monthlyQuota: 10,
-        features: ['10 CVs/mois', 'Support basic', 'Analytics simple']
-      },
-      pro: {
-        name: 'Pro',
-        color: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-        icon: '⚡',
-        monthlyQuota: 50,
-        features: ['50 CVs/mois', 'Support prioritaire', 'Analytics avancées', 'Export PDF']
-      },
-      business: {
-        name: 'Business',
-        color: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-        icon: '🚀',
-        monthlyQuota: 200,
-        features: ['200 CVs/mois', 'Support VIP', 'Analytics complètes', 'Export multi-format', 'API access']
-      }
-    };
-    return plans[plan as keyof typeof plans] || plans.starter;
-  };
-
-  // Fonction pour calculer les CVs restants
-  const getRemainingCVs = (partner: Partner) => {
-    const planInfo = getPlanInfo(partner.plan);
-    const used = partner.cvUsedThisMonth || 0;
-    const quota = planInfo.monthlyQuota;
-    return Math.max(0, quota - used);
-  };
-
-  // Fonction pour obtenir le pourcentage d'utilisation
-  const getUsagePercentage = (partner: Partner) => {
-    const planInfo = getPlanInfo(partner.plan);
-    const used = partner.cvUsedThisMonth || 0;
-    const quota = planInfo.monthlyQuota;
-    return Math.min(100, (used / quota) * 100);
   };
 
   const totalRevenue = partners.reduce((sum, p) => sum + (p.totalRevenue || 0), 0);
@@ -290,18 +329,36 @@ export default function PartnersPage() {
       header: 'Partenaire',
       cell: (partner) => {
         const planInfo = getPlanInfo(partner.plan);
+        const createdDate = new Date(partner.createdAt);
+        const isRecent = (Date.now() - createdDate.getTime()) < (7 * 24 * 60 * 60 * 1000); // Moins de 7 jours
+        
         return (
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-              <Building className="w-5 h-5" />
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 flex items-center justify-center border border-blue-500/30">
+                <Building className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-800" />
+              {isRecent && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-500 border-2 border-white dark:border-gray-800 animate-pulse" />
+              )}
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-foreground">{`${partner.firstName || ''} ${partner.lastName || ''}`.trim()}</p>
-              <p className="text-sm text-muted-foreground">{partner.company}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${planInfo.color}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="font-bold text-gray-900 dark:text-white text-lg">{partner.firstName} {partner.lastName}</p>
+                <StatusBadge status={partner.status} labels={statusLabels} />
+                {isRecent && (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Nouveau</span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium mb-2">{partner.company}</p>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                   <span>{planInfo.icon}</span>
                   <span>{planInfo.name}</span>
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {createdDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               </div>
             </div>
@@ -313,15 +370,27 @@ export default function PartnersPage() {
       key: 'contact',
       header: 'Contact',
       cell: (partner) => (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="w-3 h-3 text-muted-foreground" />
-            <span className="text-foreground">{partner.email}</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{partner.email}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Email professionnel</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="w-3 h-3 text-muted-foreground" />
-            <span className="text-foreground">{partner.phone || 'Non défini'}</span>
-          </div>
+          {partner.phone && (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Phone className="w-4 h-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{partner.phone}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Téléphone</p>
+              </div>
+            </div>
+          )}
         </div>
       ),
     },
@@ -329,36 +398,51 @@ export default function PartnersPage() {
       key: 'usage',
       header: 'Utilisation CVs',
       cell: (partner) => {
-        const planInfo = getPlanInfo(partner.plan);
-        const used = partner.cvUsedThisMonth || 0;
-        const remaining = getRemainingCVs(partner);
-        const percentage = getUsagePercentage(partner);
-        const isNearLimit = percentage >= 80;
+        const cvStats = partner.cvStats || {
+          used: partner.cvUsedThisMonth || 0,
+          quota: getPlanInfo(partner.plan).quota,
+          remaining: getPlanInfo(partner.plan).quota - (partner.cvUsedThisMonth || 0),
+          percentageUsed: ((partner.cvUsedThisMonth || 0) / getPlanInfo(partner.plan).quota) * 100,
+          isLimitReached: (partner.cvUsedThisMonth || 0) >= getPlanInfo(partner.plan).quota,
+          plan: partner.plan
+        };
         
         return (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Utilisation</span>
-              <span className={`font-medium ${isNearLimit ? 'text-amber-500' : 'text-foreground'}`}>
-                {used}/{planInfo.monthlyQuota}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">{cvStats.used}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">CVs créés</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-gray-900 dark:text-white">{cvStats.quota}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Quota mensuel</p>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 rounded-full ${
+                    cvStats.percentageUsed >= 90 ? 'bg-gradient-to-r from-red-500 to-red-600' : 
+                    cvStats.percentageUsed >= 80 ? 'bg-gradient-to-r from-amber-500 to-amber-600' : 
+                    'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                  }`}
+                  style={{ width: `${Math.min(100, cvStats.percentageUsed)}%` }}
+                />
+              </div>
+              <span className={`absolute -top-1 right-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                cvStats.isLimitReached ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 
+                cvStats.percentageUsed >= 80 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' : 
+                'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+              }`}>
+                {cvStats.remaining} restants
               </span>
             </div>
-            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-              <div 
-                className={`h-full transition-all duration-300 ${
-                  percentage >= 90 ? 'bg-red-500' : 
-                  percentage >= 80 ? 'bg-amber-500' : 
-                  'bg-emerald-500'
-                }`}
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Restants</span>
-              <span className={`font-medium ${remaining <= 2 ? 'text-red-500' : remaining <= 5 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                {remaining} CVs
-              </span>
-            </div>
+            {cvStats.isLimitReached && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
+                <p className="text-xs font-medium text-red-600 dark:text-red-400">⚠️ Quota atteint</p>
+              </div>
+            )}
           </div>
         );
       },
@@ -367,26 +451,34 @@ export default function PartnersPage() {
       key: 'renewal',
       header: 'Renouvellement',
       cell: (partner) => {
-        const renewalDate = new Date(partner.planRenewalDate || '');
-        const today = new Date();
-        const daysUntilRenewal = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        const isUrgent = daysUntilRenewal <= 7;
+        const daysUntilRenewal = getDaysUntilRenewal(partner.planRenewalDate);
+        const renewalUrgency = getRenewalUrgency(daysUntilRenewal);
+        const renewalDate = new Date(partner.planRenewalDate);
         
         return (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="w-3 h-3 text-muted-foreground" />
-              <span className="text-foreground">
-                {renewalDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {renewalDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Date de renouvellement</p>
+              </div>
             </div>
-            <div className="text-xs">
-              <span className={`font-medium ${
-                isUrgent ? 'text-red-500' : 
-                daysUntilRenewal <= 15 ? 'text-amber-500' : 
-                'text-emerald-500'
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+              renewalUrgency.level === 'critical' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' :
+              renewalUrgency.level === 'warning' ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800' :
+              'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
+            }`}>
+              <span className={`text-sm font-semibold ${
+                renewalUrgency.level === 'critical' ? 'text-red-600 dark:text-red-400' :
+                renewalUrgency.level === 'warning' ? 'text-amber-600 dark:text-amber-400' :
+                'text-emerald-600 dark:text-emerald-400'
               }`}>
-                {isUrgent ? '⚠️ ' : ''}{daysUntilRenewal} jours
+                {renewalUrgency.icon}{daysUntilRenewal} jours
               </span>
             </div>
           </div>
@@ -394,27 +486,22 @@ export default function PartnersPage() {
       },
     },
     {
-      key: 'status',
-      header: 'Statut',
-      cell: (partner) => <StatusBadge status={partner.status} labels={statusLabels} />,
-    },
-    {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       cell: (partner) => (
         <div className="flex items-center gap-2">
           <Button 
             variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 hover:bg-blue-500/10 hover:text-blue-500" 
+            size="sm" 
+            className="h-8 w-8 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200" 
             onClick={() => { setSelectedPartner(partner); setIsModalOpen(true); }}
           >
             <Edit className="w-4 h-4" />
           </Button>
           <Button 
             variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 hover:bg-red-500/10 hover:text-red-500" 
+            size="sm" 
+            className="h-8 w-8 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200" 
             onClick={() => handleDeletePartner(partner._id)}
           >
             <Trash2 className="w-4 h-4" />
@@ -438,214 +525,118 @@ export default function PartnersPage() {
         }
       />
 
-      {/* Enhanced Stats */}
+      {/* Dashboard Analytics Moderne */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
       >
-        <div className="forge-card p-4 border-l-4 border-l-emerald-500">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">Partenaires actifs</p>
-            <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
-              <Building className="w-4 h-4 text-emerald-500" />
+        {/* Carte Partenaires */}
+        <div className="relative group">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+          <div className="relative bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Building className="w-6 h-6 text-white" />
+              </div>
+              <div className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-full">
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">+12%</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{partners.length}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Partenaires totaux</p>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-emerald-600 dark:text-emerald-400">{partners.filter(p => p.status === 'active').length} actifs</span>
+              </div>
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">{partners.filter(p => p.status === 'active').length}</p>
-          <p className="text-xs text-muted-foreground mt-1">sur {partners.length} total</p>
         </div>
-        
-        <div className="forge-card p-4 border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">CVs ce mois</p>
-            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-blue-500" />
+
+        {/* Carte Utilisation CV */}
+        <div className="relative group">
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+          <div className="relative bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <div className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">+28%</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {partners.reduce((sum, p) => sum + (p.cvUsedThisMonth || 0), 0)}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">CVs créés ce mois</p>
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" style={{ 
+                  width: `${Math.min(100, (partners.reduce((sum, p) => sum + (p.cvUsedThisMonth || 0), 0) / (partners.length * 50)) * 100)}%` 
+                }} />
+              </div>
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">{partners.reduce((sum, p) => sum + (p.cvUsedThisMonth || 0), 0)}</p>
-          <p className="text-xs text-muted-foreground mt-1">utilisés ce mois</p>
         </div>
-        
-        <div className="forge-card p-4 border-l-4 border-l-purple-500">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">Plans Pro+</p>
-            <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-purple-500" />
+
+        {/* Carte Plans Premium */}
+        <div className="relative group">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+          <div className="relative bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Premium</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {partners.filter(p => p.plan === 'pro' || p.plan === 'business').length}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Plans Pro & Business</p>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-purple-600 dark:text-purple-400">
+                  {Math.round((partners.filter(p => p.plan === 'pro' || p.plan === 'business').length / partners.length) * 100)}% des clients
+                </span>
+              </div>
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">
-            {partners.filter(p => p.plan === 'pro' || p.plan === 'business').length}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">plans premium</p>
         </div>
-        
-        <div className="forge-card p-4 border-l-4 border-l-amber-500">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">Renouvellements</p>
-            <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <Calendar className="w-4 h-4 text-amber-500" />
+
+        {/* Carte Alertes */}
+        <div className="relative group">
+          <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+          <div className="relative bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-lg">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+              <div className="px-2 py-1 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <span className="text-xs font-medium text-red-600 dark:text-red-400">Urgent</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {partners.filter(p => {
+                  const days = getDaysUntilRenewal(p.planRenewalDate);
+                  return days <= 7 || p.cvStats?.isLimitReached;
+                }).length}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Actions requises</p>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-red-600 dark:text-red-400">Attention requise</span>
+              </div>
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">
-            {partners.filter(p => {
-              const renewalDate = new Date(p.planRenewalDate || '');
-              const today = new Date();
-              const daysUntilRenewal = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-              return daysUntilRenewal <= 7;
-            }).length}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">dans 7 jours</p>
         </div>
       </motion.div>
 
-      {/* Partner Details Cards */}
-      {filteredPartners.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
-        >
-          {filteredPartners.slice(0, 4).map((partner, index) => {
-            const planInfo = getPlanInfo(partner.plan);
-            const used = partner.cvUsedThisMonth || 0;
-            const remaining = getRemainingCVs(partner);
-            const percentage = getUsagePercentage(partner);
-            const renewalDate = new Date(partner.planRenewalDate || '');
-            const daysUntilRenewal = Math.ceil((renewalDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-            
-            return (
-              <motion.div
-                key={partner._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + index * 0.05 }}
-                className="forge-card p-6 border-l-4 border-l-emerald-500 hover:shadow-lg transition-all duration-300"
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-                      <Building className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg text-foreground">
-                        {`${partner.firstName || ''} ${partner.lastName || ''}`.trim()}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{partner.company}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={partner.status} labels={statusLabels} />
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${planInfo.color}`}>
-                      <span>{planInfo.icon}</span>
-                      <span>{planInfo.name}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Contact Info */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-foreground truncate">{partner.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-foreground">{partner.phone || 'Non défini'}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-foreground">
-                        {renewalDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <TrendingUp className="w-3 h-3 text-muted-foreground" />
-                      <span className={`font-medium ${
-                        daysUntilRenewal <= 7 ? 'text-red-500' : 
-                        daysUntilRenewal <= 15 ? 'text-amber-500' : 
-                        'text-emerald-500'
-                      }`}>
-                        {daysUntilRenewal <= 7 ? '⚠️ ' : ''}{daysUntilRenewal} jours
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CV Usage Progress */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Utilisation des CVs</span>
-                    <span className="text-sm text-muted-foreground">
-                      {used}/{planInfo.monthlyQuota} ce mois
-                    </span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-500 ${
-                        percentage >= 90 ? 'bg-red-500' : 
-                        percentage >= 80 ? 'bg-amber-500' : 
-                        'bg-emerald-500'
-                      }`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Restants</span>
-                    <span className={`font-semibold ${
-                      remaining <= 2 ? 'text-red-500' : 
-                      remaining <= 5 ? 'text-amber-500' : 
-                      'text-emerald-500'
-                    }`}>
-                      {remaining} CVs
-                    </span>
-                  </div>
-                </div>
-
-                {/* Plan Features */}
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Fonctionnalités du plan</p>
-                  <div className="flex flex-wrap gap-1">
-                    {planInfo.features.map((feature, idx) => (
-                      <span key={idx} className="inline-block px-2 py-1 bg-muted/50 rounded text-xs text-muted-foreground">
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/20"
-                    onClick={() => { setSelectedPartner(partner); setIsModalOpen(true); }}
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Modifier
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20"
-                    onClick={() => handleDeletePartner(partner._id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      )}
-
-      {/* Filters */}
+      {/* Filtres et Actions */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
