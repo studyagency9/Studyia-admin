@@ -28,25 +28,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { invoicesService } from '@/lib/api';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreateInvoiceForm } from '@/components/invoices/CreateInvoiceForm';
+import { PartnerInvoiceForm } from '@/components/invoices/PartnerInvoiceForm';
+import { invoicesService } from '@/lib/api';
 
 // Define the Invoice type based on API response
 interface Invoice {
@@ -267,9 +254,10 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleCreateInvoiceSuccess = (newInvoice: Invoice) => {
-    setInvoices(prev => [newInvoice, ...prev]);
+  const handleCreateInvoiceSuccess = () => {
     setIsCreateModalOpen(false);
+    // Refresh the invoices list
+    fetchInvoices();
     fetchStats();
   };
 
@@ -410,26 +398,18 @@ export default function InvoicesPage() {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Actualiser
               </Button>
-              <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="forge-button-primary">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouvelle facture
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Créer une nouvelle facture</DialogTitle>
-                    <DialogDescription>
-                      Remplissez les informations pour générer une nouvelle facture.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateInvoiceForm
-                    onSuccess={handleCreateInvoiceSuccess}
-                    onCancel={() => setIsCreateModalOpen(false)}
-                  />
-                </DialogContent>
-              </Dialog>
+              <Button 
+                className="forge-button-primary"
+                onClick={() => setIsCreateModalOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nouvelle facture
+              </Button>
+              <PartnerInvoiceForm
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSuccess={handleCreateInvoiceSuccess}
+              />
             </div>
           }
         />
