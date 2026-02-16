@@ -107,25 +107,51 @@ export function EmailHub() {
       });
       
       if (response.data?.emails?.length > 0) {
-        const formattedEmails: Email[] = response.data.emails.map((email: any) => ({
-          id: email.id?.toString() || email.uid?.toString(),
-          uid: email.uid?.toString(),
-          subject: email.subject || 'Sans sujet',
-          from: {
-            name: email.from?.name || email.from?.address || 'Unknown',
-            address: email.from?.address || email.from || 'Unknown'
-          },
-          to: email.to || 'contact@studyia.net',
-          date: email.date,
-          body: email.body || 'Contenu non disponible',
-          hasAttachments: email.hasAttachments || false,
-          attachments: email.attachments || [],
-          isRead: email.isRead || false,
-          isStarred: false,
-          isArchived: false,
-          mailbox: email.mailbox || 'INBOX',
-          priority: email.hasAttachments ? 'high' : 'medium'
-        }));
+        const formattedEmails: Email[] = response.data.emails.map((email: any) => {
+          // Nettoyer et extraire le contenu
+          let body = 'Contenu non disponible';
+          
+          if (email.body && typeof email.body === 'string') {
+            // Nettoyer les caractères invisibles et espaces excessifs
+            let cleanBody = email.body
+              .replace(/[\u200B-\u200D\uFEFF]/g, '') // Caractères invisibles
+              .replace(/[\s\n\r]+/g, ' ') // Espaces et sauts de ligne multiples
+              .replace(/\s+/g, ' ') // Espaces multiples
+              .trim();
+            
+            // Si le contenu est trop long, le tronquer
+            if (cleanBody.length > 500) {
+              cleanBody = cleanBody.substring(0, 500) + '...';
+            }
+            
+            body = cleanBody || 'Contenu non disponible';
+          }
+          
+          return {
+            id: email.id?.toString() || email.uid?.toString(),
+            uid: email.uid?.toString(),
+            subject: email.subject || 'Sans sujet',
+            from: {
+              name: email.from?.name || email.from?.address || 'Unknown',
+              address: email.from?.address || email.from || 'Unknown'
+            },
+            to: Array.isArray(email.to) 
+              ? email.to.map((t: any) => typeof t === 'string' ? t : (t?.address || t)).join(', ') 
+              : (typeof email.to === 'string' 
+                ? email.to 
+                : (email.to as any)?.address || 'contact@studyia.net'
+              ),
+            date: email.date,
+            body: body,
+            hasAttachments: email.hasAttachments || false,
+            attachments: email.attachments || [],
+            isRead: email.isRead || email.unread === false || false,
+            isStarred: false,
+            isArchived: false,
+            mailbox: email.mailbox || 'INBOX',
+            priority: email.hasAttachments ? 'high' : 'medium'
+          };
+        });
         setEmails(formattedEmails);
       } else {
         // Use mock data if backend returns empty
@@ -234,8 +260,9 @@ export function EmailHub() {
 
   // Filter emails
   const filteredEmails = emails.filter(email => {
+    const fromName = typeof email.from.name === 'string' ? email.from.name : email.from.address || 'Unknown';
     const matchesSearch = email.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         email.from.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         fromName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          email.from.address.toLowerCase().includes(searchQuery.toLowerCase());
     
     switch (filter) {
@@ -339,6 +366,31 @@ export function EmailHub() {
       ...prev,
       attachments: prev.attachments.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleDownloadAttachment = async (emailId: string, filename: string) => {
+    try {
+      console.log('📎 Downloading attachment:', filename, 'from email:', emailId);
+      
+      // Utiliser le service API pour télécharger la pièce jointe
+      const response = await emailService.downloadAttachment(emailId, filename);
+      
+      // Créer un blob et déclencher le téléchargement
+      const blob = new Blob([response.data], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('✅ Attachment downloaded successfully:', filename);
+    } catch (error) {
+      console.error('❌ Error downloading attachment:', error);
+      alert('Erreur lors du téléchargement de la pièce jointe. Veuillez réessayer.');
+    }
   };
 
   const unreadCount = emails.filter(e => !e.isRead).length;
@@ -550,7 +602,7 @@ export function EmailHub() {
                     <div className="flex items-start gap-3">
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="text-xs bg-gradient-to-br from-blue-500 to-purple-500 text-white">
-                          {email.from.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          {(typeof email.from.name === 'string' ? email.from.name : email.from.address || 'Unknown').split(' ').map(n => n[0]).join('').toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       
@@ -559,7 +611,7 @@ export function EmailHub() {
                           <span className={`text-sm font-medium truncate ${
                             !email.isRead ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'
                           }`}>
-                            {email.from.name}
+                            {typeof email.from.name === 'string' ? email.from.name : email.from.address || 'Unknown'}
                           </span>
                           <div className="flex items-center gap-1">
                             {email.hasAttachments && <Paperclip className="w-3 h-3 text-muted-foreground" />}
@@ -631,16 +683,22 @@ export function EmailHub() {
                 <div className="flex items-center gap-4">
                   <Avatar className="w-10 h-10">
                     <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white">
-                      {selectedEmail.from.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      {(typeof selectedEmail.from.name === 'string' ? selectedEmail.from.name : selectedEmail.from.address || 'Unknown').split(' ').map(n => n[0]).join('').toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{selectedEmail.from.name}</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{typeof selectedEmail.from.name === 'string' ? selectedEmail.from.name : selectedEmail.from.address || 'Unknown'}</span>
                       <span className="text-sm text-muted-foreground">&lt;{selectedEmail.from.address}&gt;</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      À: {selectedEmail.to} • {new Date(selectedEmail.date).toLocaleString('fr-FR')}
+                      À: {Array.isArray(selectedEmail.to) 
+                        ? selectedEmail.to.map((t: any) => typeof t === 'string' ? t : (t?.address || t)).join(', ') 
+                        : (typeof selectedEmail.to === 'string' 
+                          ? selectedEmail.to 
+                          : (selectedEmail.to as any)?.address || 'contact@studyia.net'
+                        )
+                      } • {new Date(selectedEmail.date).toLocaleString('fr-FR')}
                     </div>
                   </div>
                   <Badge variant={
@@ -679,7 +737,12 @@ export function EmailHub() {
                                   </div>
                                 </div>
                               </div>
-                              <Button variant="outline" size="sm" className="hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                onClick={() => handleDownloadAttachment(selectedEmail.id, attachment.filename)}
+                              >
                                 <Download className="w-4 h-4 mr-2" />
                                 Télécharger
                               </Button>
@@ -709,7 +772,7 @@ export function EmailHub() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
                       <Reply className="w-4 h-4" />
-                      Réponse à {selectedEmail.from.name} &lt;{selectedEmail.from.address}&gt;
+                      Réponse à {typeof selectedEmail.from.name === 'string' ? selectedEmail.from.name : selectedEmail.from.address || 'Unknown'} &lt;{selectedEmail.from.address}&gt;
                     </div>
                     <Textarea
                       value={replyContent}

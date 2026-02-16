@@ -275,13 +275,33 @@ export default function Dashboard() {
       // Mapper les données IMAP vers notre format MailData
       const mappedMails: MailData[] = emailsToMap.map((email: any) => {
         console.log('📧 Mapping email:', email);
+        
+        // Nettoyer et extraire le contenu
+        let content = 'Contenu non disponible';
+        
+        if (email.body && typeof email.body === 'string') {
+          // Nettoyer les caractères invisibles et espaces excessifs
+          let cleanBody = email.body
+            .replace(/[\u200B-\u200D\uFEFF]/g, '') // Caractères invisibles
+            .replace(/[\s\n\r]+/g, ' ') // Espaces et sauts de ligne multiples
+            .replace(/\s+/g, ' ') // Espaces multiples
+            .trim();
+          
+          // Si le contenu est trop long, le tronquer
+          if (cleanBody.length > 300) {
+            cleanBody = cleanBody.substring(0, 300) + '...';
+          }
+          
+          content = cleanBody || 'Contenu non disponible';
+        }
+        
         return {
           id: email.id?.toString() || email.uid?.toString(),
           from: email.from?.address || email.from || 'Unknown',
           subject: email.subject || 'Sans sujet',
-          content: email.body || 'Contenu non disponible',
+          content: content,
           date: email.date,
-          isRead: email.isRead || false,
+          isRead: email.isRead || email.unread === false || false,
           isReplied: false, // Pas d'info de réponse dans l'API actuelle
           priority: email.hasAttachments ? 'high' : 'medium'
         };
